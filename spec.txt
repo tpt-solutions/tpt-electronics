@@ -1,0 +1,2213 @@
+# Design Document: Electronics & Semiconductor
+**Organization:** TPT Solutions (`tpt-solutions`)
+**Repository:** `tpt-electronics`
+**Crate Prefix:** `tpt-elec-*`
+**License Strategy:** Strict MIT-Only Chain
+
+---
+
+## 1. Executive Summary
+As AI data centers and microchips get hotter, thermal management is the primary hardware bottleneck. Simulating heat dissipation across a microscopic PCB requires coupled electro-thermal FEM. Legacy tools (FloTHERM, Icepak, Celsius) are incredibly expensive proprietary suites tightly coupled to specific EDA vendors (Cadence, Siemens). Open-source multiphysics is usually GPL.
+
+`tpt-electronics` provides a lightweight, MIT-licensed PCB thermal stress simulator that integrates directly into standard EDA workflows, helping hardware engineers prevent their boards from melting before they go to fabrication.
+
+## 2. Substrate Leverage
+*   **`tpt-fem`**: Steady-state and transient heat transfer FEM, micro-scale hexahedral meshing.
+*   **`tpt-science`**: Electromagnetics, Joule heating (electrical resistance generating heat).
+*   **`tpt-engineering`**: Anisotropic thermal conductivity (materials conducting heat differently in X/Y/Z axes, like FR4 fiberglass).
+
+## 3. Crate Taxonomy & Data Models
+
+### Core & Geometry
+*   **`tpt-elec-core`**: PCB layer stackups, component bounding boxes, thermal vias.
+*   **`tpt-elec-pcb`**: Parser for PCB layout files (Gerber RS-274X, ODB++, KiCad). Extracts copper trace routing and calculates effective thermal resistance.
+*   **`tpt-elec-package`**: Semiconductor package thermal modeling (BGA, QFN, heat sinks, thermal pads).
+
+### Thermal & Electro-Thermal
+*   **`tpt-elec-thermal`**: Conduction, convection, and radiation heat transfer FEM. Handles anisotropic tensors for PCB substrates.
+*   **`tpt-elec-joule`**: Electro-thermal coupling. Calculates current density through traces and vias, converting electrical resistance into volumetric heat generation.
+*   **`tpt-elec-emc`**: Basic electromagnetic interference (EMI) shielding effectiveness and skin depth calculations for high-frequency traces.
+
+## 4. Dependency Graph & MIT Chain
+*   **Allowed:** `tpt-fem`, `tpt-science`, `tpt-engineering`, `gerber-rs` (MIT) or custom Gerber parsers, `tracespace` (MIT/Apache concepts).
+*   **Banned:** `FloTHERM` (Proprietary), `Elmer FEM` (GPL), `OpenFOAM` (GPL).
+*   **Strategy:** PCB thermal analysis relies heavily on hexahedral meshing and anisotropic material tensors. `tpt-fem` handles the tensors via `tpt-math-linalg-fixed`, and `tpt-elec-pcb` handles the geometric extraction. Keep the meshing strictly voxel/hex-based to avoid complex tetrahedral meshing libraries.
+
+## 5. Verification & Validation (V&V) Strategy
+*   **JEDEC Standards:** Validate against JEDEC JESD51 standards for semiconductor thermal testing (e.g., JESD51-12 for LED packages).
+*   **IPC-2152:** Validate trace current-carrying capacity and temperature rise against IPC-2152 standards for printed board design.
+
+## 6. Phased Delivery
+1.  **Phase 1:** `tpt-elec-pcb` (PCB layer stackup and trace geometry parser from Gerber/KiCad).
+2.  **Phase 2:** `tpt-elec-thermal` (Steady-state thermal conduction FEM with anisotropic materials).
+3.  **Phase 3:** `tpt-elec-joule` (Joule heating electro-thermal coupling).
+4.  **Phase 4:** `tpt-elec-package` (Transient thermal analysis for power cycling of BGA/QFN packages).
+
+# TPT Electronics: Open Source Design Document
+
+**Organization:** TPT Solutions (`tpt-solutions`)
+**Repository:** `tpt-electronics`
+**Crate Prefix:** `tpt-elec-*`
+**License:** `MIT OR Apache-2.0`
+**Status:** Open Source Master Plan
+**Philosophy:** 100% Open Source. No proprietary cores. No open-core bait. No GPL traps.
+
+---
+
+## 1. Open Source Declaration
+
+`tpt-electronics` is a fully open-source, MIT-licensed multiphysics simulation engine for electronic systems. Every crate, every algorithm, every data model is freely available under MIT OR Apache-2.0.
+
+### Why Fully Open Source?
+
+The electronics simulation space is dominated by two extremes:
+
+1. **Proprietary enterprise tools** (Ansys, Cadence, Siemens, Altium) costing $50k-$500k per seat, locked behind NDAs and vendor lock-in.
+2. **GPL-contaminated open source** (NGSpice wrappers, OpenFOAM, GMSH, Elmer) that legally prevents commercial integration without infecting your codebase.
+
+`tpt-electronics` eliminates both problems:
+
+- **No cost barrier:** Any engineer, startup, or hobbyist can use it freely.
+- **No license barrier:** Enterprises can integrate it into proprietary products without copyleft contamination.
+- **No server barrier:** WASM compilation means simulations run entirely in the browser or locally — no cloud dependency, no data exfiltration.
+
+### Open Source Governance
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                  TPT ELECTRONICS GOVERNANCE                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  License:        MIT OR Apache-2.0 (dual)                   │
+│  Contributions:  MIT OR Apache-2.0 (CLA-free via DCO)       │
+│  Trademark:      "TPT Electronics" name reserved by TPT     │
+│  Governance:     Benevolent Dictator + RFC process          │
+│  Roadmap:        Public GitHub Projects board               │
+│  Releases:       SemVer, 6-week cadence                     │
+│  Security:       SECURITY.md, private disclosure            │
+│                                                             │
+│  No Contributor License Agreement (CLA) required.           │
+│  All contributions via Developer Certificate of Origin.     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Executive Vision
+
+`tpt-electronics` is a pure-Rust, MIT-licensed multiphysics simulation engine for electronic systems. It solves the critical problems that kill hardware projects:
+
+1. **Thermal runaway** — components overheating and failing
+2. **Electromigration** — traces burning out from excessive current
+3. **Signal integrity** — high-speed traces suffering EMI and losses
+4. **Power delivery** — voltage droop and ground bounce
+5. **EMC compliance** — failing regulatory certification
+6. **Battery safety** — thermal runaway propagation in packs
+
+The engine ingests standard EDA manufacturing formats (Gerber, ODB++, IPC-2581, KiCad), constructs voxel/hexahedral FEM meshes, and runs coupled electro-thermal-electromagnetic simulations entirely in Rust. Because it compiles to WebAssembly, it can run inside a browser-based EDA tool, a VS Code extension, or a CI pipeline — with zero server round-trips and zero GPL contamination.
+
+### Why Rust for Electronics Simulation
+
+| Requirement | Rust Advantage |
+|---|---|
+| Millions of voxel elements | Zero-cost abstractions, no GC pauses |
+| Anisotropic thermal tensors | `tpt-math-linalg-fixed` fixed-size arrays |
+| Real-time EDA feedback | WASM compilation for sub-second results |
+| Enterprise deployment | MIT-only chain, no GPL audit risk |
+| GPU acceleration | `wgpu` compute shaders for transient heat |
+| Memory safety | No segfaults in long-running simulations |
+| Concurrency | Fearless concurrency for parallel mesh processing |
+
+---
+
+## 3. Substrate Integration Map
+
+```text
+tpt-math
+├── tpt-math-linalg-fixed     → Thermal conductivity tensors, MNA matrices
+├── tpt-math-optimize-general → Newton-Raphson, filter synthesis, thermal via optimization
+├── tpt-math-prob-dist        → Kalman filters (BMS), yield prediction, Monte Carlo
+└── tpt-math-signal-filter    → Jitter separation, noise analysis, sensor filtering
+
+tpt-engineering
+├── Material properties       → FR4, copper, aluminum, solder, PEEK, silicon
+├── Thermal conductivity      → Anisotropic tensors per material
+├── Electrical resistivity    → Temperature-dependent resistivity
+└── Magnetic properties       → Core materials, permeability, saturation
+
+tpt-science
+├── Heat transfer             → Conduction, convection, radiation
+├── Electromagnetics          → Joule heating, skin effect, Maxwell's equations
+├── Semiconductor physics     → Band diagrams, doping, Fermi-Dirac
+└── Fluid dynamics            → Forced convection (heat sink airflow)
+
+tpt-fem
+├── Mesh generation           → Voxel/hex mesh from Gerber stackup
+├── Element types             → 8-node hexahedral thermal/electromagnetic elements
+├── Assembly                  → Global stiffness matrix assembly
+├── Solvers                   → Conjugate Gradient, BiCGSTAB, GMRES
+└── Post-processing           → Nodal temperature/voltage extraction
+```
+
+---
+
+## 4. Workspace Layout
+
+```text
+tpt-electronics/
+├── Cargo.toml
+├── LICENSE-MIT
+├── LICENSE-APACHE
+├── README.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── CODE_OF_CONDUCT.md
+├── CHANGELOG.md
+├── deny.toml
+├── rustfmt.toml
+├── clippy.toml
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml
+│   │   ├── license.yml
+│   │   ├── benchmark.yml
+│   │   ├── docs.yml
+│   │   └── release.yml
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   ├── feature_request.md
+│   │   └── rfc.md
+│   └── PULL_REQUEST_TEMPLATE.md
+├── crates/
+│   ├── core/
+│   │   ├── tpt-elec-core/
+│   │   ├── tpt-elec-materials/
+│   │   ├── tpt-elec-geometry/
+│   │   └── tpt-elec-wasm/
+│   ├── formats/
+│   │   ├── tpt-elec-gerber/
+│   │   ├── tpt-elec-kicad/
+│   │   ├── tpt-elec-odbpp/
+│   │   ├── tpt-elec-ipc2581/
+│   │   ├── tpt-elec-touchstone/
+│   │   └── tpt-elec-spice-netlist/
+│   ├── thermal/
+│   │   ├── tpt-elec-thermal/
+│   │   ├── tpt-elec-joule/
+│   │   ├── tpt-elec-transient/
+│   │   └── tpt-elec-convection/
+│   ├── circuit/
+│   │   ├── tpt-elec-spice-core/
+│   │   ├── tpt-elec-spice-models/
+│   │   ├── tpt-elec-spice-analysis/
+│   │   └── tpt-elec-spice-noise/
+│   ├── signal-integrity/
+│   │   ├── tpt-elec-si-core/
+│   │   ├── tpt-elec-si-impedance/
+│   │   ├── tpt-elec-si-crosstalk/
+│   │   ├── tpt-elec-si-eye/
+│   │   ├── tpt-elec-pi-pdn/
+│   │   └── tpt-elec-pi-decoupling/
+│   ├── rf/
+│   │   ├── tpt-elec-rf-core/
+│   │   ├── tpt-elec-rf-filters/
+│   │   ├── tpt-elec-rf-antenna/
+│   │   ├── tpt-elec-rf-mixer/
+│   │   └── tpt-elec-rf-links/
+│   ├── power/
+│   │   ├── tpt-elec-power-core/
+│   │   ├── tpt-elec-power-magnetics/
+│   │   ├── tpt-elec-power-switches/
+│   │   ├── tpt-elec-power-control/
+│   │   └── tpt-elec-power-battery/
+│   ├── semiconductor/
+│   │   ├── tpt-elec-semi-core/
+│   │   ├── tpt-elec-semi-mosfet/
+│   │   ├── tpt-elec-semi-diode/
+│   │   ├── tpt-elec-semi-bjt/
+│   │   └── tpt-elec-semi-process/
+│   ├── emc/
+│   │   ├── tpt-elec-emc-core/
+│   │   ├── tpt-elec-emc-emissions/
+│   │   ├── tpt-elec-emc-immunity/
+│   │   ├── tpt-elec-emc-shielding/
+│   │   └── tpt-elec-emc-grounding/
+│   ├── battery/
+│   │   ├── tpt-elec-battery-core/
+│   │   ├── tpt-elec-battery-thermal/
+│   │   ├── tpt-elec-battery-bms/
+│   │   └── tpt-elec-battery-pack/
+│   └── manufacturing/
+│       ├── tpt-elec-mfg-dfm/
+│       ├── tpt-elec-mfg-test/
+│       └── tpt-elec-mfg-yield/
+├── examples/
+│   ├── simple-led-board/
+│   ├── 4-layer-fr4/
+│   ├── bga-thermal-cycle/
+│   ├── high-current-trace/
+│   ├── buck-converter/
+│   ├── wifi-antenna/
+│   └── pcie-eye-diagram/
+├── test-data/
+│   ├── gerber/
+│   ├── kicad/
+│   ├── odbpp/
+│   ├── ipc2581/
+│   ├── touchstone/
+│   ├── spice/
+│   └── golden/
+├── benches/
+│   ├── thermal-steady-state.rs
+│   ├── joule-heating.rs
+│   ├── spice-transient.rs
+│   └── si-eye-diagram.rs
+├── docs/
+│   ├── book/                    # mdBook documentation
+│   ├── rfc/                     # RFC documents
+│   └── api/                     # Generated API docs
+└── rfcs/
+    ├── 0001-thermal-fem.md
+    ├── 0002-spice-mna.md
+    └── 0003-si-eye-diagram.md
+```
+
+---
+
+## 5. Crate Taxonomy (Complete)
+
+### Domain 1: Core & Materials
+
+#### `tpt-elec-core`
+
+Fundamental domain types shared across all electronics crates.
+
+```rust
+// Core identifiers
+pub struct BoardId(Uuid);
+pub struct LayerId(u32);
+pub struct ComponentId(String);
+pub struct NetId(String);
+pub struct TraceId(u64);
+pub struct ViaId(u64);
+pub struct PadId(u64);
+
+// Board stackup
+pub struct Stackup {
+    pub layers: Vec<Layer>,
+    pub total_thickness: Length,
+    pub outline: Vec<Point2>,
+}
+
+pub struct Layer {
+    pub id: LayerId,
+    pub name: String,
+    pub layer_type: LayerType,
+    pub thickness: Length,
+    pub material: MaterialId,
+    pub copper_weight: Option<CopperWeight>,
+    pub order: u32,
+}
+
+pub enum LayerType {
+    Signal,
+    Plane,
+    Dielectric,
+    SolderMaskTop,
+    SolderMaskBottom,
+    SilkscreenTop,
+    SilkscreenBottom,
+    SurfaceFinish,
+}
+
+pub enum CopperWeight {
+    HalfOz,
+    OneOz,
+    TwoOz,
+    ThreeOz,
+    Custom(f64),
+}
+
+// Component representation
+pub struct Component {
+    pub id: ComponentId,
+    pub reference: String,
+    pub package: PackageType,
+    pub position: Point2,
+    pub rotation: Angle,
+    pub side: BoardSide,
+    pub thermal_model: ThermalComponentModel,
+    pub electrical_model: ElectricalModel,
+}
+
+pub enum BoardSide {
+    Top,
+    Bottom,
+}
+
+pub struct ThermalComponentModel {
+    pub junction_to_ambient: f64,    // θJA (°C/W)
+    pub junction_to_case: f64,       // θJC (°C/W)
+    pub junction_to_board: f64,      // θJB (°C/W)
+    pub power_dissipation: f64,      // Watts
+    pub thermal_pad: Option<ThermalPad>,
+}
+
+pub struct ThermalPad {
+    pub width: Length,
+    pub height: Length,
+    pub via_array: Option<ViaArray>,
+}
+
+pub struct ViaArray {
+    pub rows: u32,
+    pub cols: u32,
+    pub pitch: Length,
+    pub drill_diameter: Length,
+    pub plating_thickness: Length,
+}
+```
+
+#### `tpt-elec-materials`
+
+Material database with temperature-dependent properties.
+
+```rust
+pub struct MaterialDatabase {
+    materials: HashMap<MaterialId, Material>,
+}
+
+pub struct Material {
+    pub id: MaterialId,
+    pub name: String,
+    pub category: MaterialCategory,
+    pub thermal_conductivity: ThermalConductivity,
+    pub electrical_resistivity: f64,
+    pub temperature_coefficient: f64,
+    pub specific_heat: f64,
+    pub density: f64,
+    pub cte: Cte,
+    pub max_operating_temp: f64,
+}
+
+pub enum ThermalConductivity {
+    Isotropic(f64),
+    Anisotropic { kx: f64, ky: f64, kz: f64 },
+    Tensor([[f64; 3]; 3]),
+}
+
+pub enum MaterialCategory {
+    Copper,
+    Aluminum,
+    Fr4,
+    Rogers,
+    Polyimide,
+    SolderMask,
+    Solder,
+    ThermalInterface,
+    Ceramic,
+    Silicon,
+    Air,
+}
+
+// Built-in material properties
+// Copper:    k=385 W/mK, ρ=1.68e-8 Ω·m, α=0.00393
+// FR4 (XY):  k=0.3 W/mK, ρ~1e12 Ω·m
+// FR4 (Z):   k=0.3 W/mK
+// Aluminum:  k=205 W/mK, ρ=2.65e-8 Ω·m
+// SAC305:    k=50 W/mK, ρ=1.1e-7 Ω·m
+// Silicon:   k=148 W/mK
+// AlN:       k=170 W/mK
+```
+
+#### `tpt-elec-geometry`
+
+2D and 3D geometric operations specific to PCB geometry.
+
+```rust
+pub struct Trace {
+    pub id: TraceId,
+    pub net: NetId,
+    pub layer: LayerId,
+    pub width: Length,
+    pub points: Vec<Point2>,
+    pub arcs: Vec<Arc>,
+}
+
+pub struct Pad {
+    pub id: PadId,
+    pub shape: PadShape,
+    pub position: Point2,
+    pub layer: LayerId,
+    pub drill: Option<DrillHole>,
+}
+
+pub enum PadShape {
+    Circle { diameter: Length },
+    Rectangle { width: Length, height: Length },
+    RoundedRectangle { width: Length, height: Length, radius: Length },
+    Oblong { width: Length, height: Length },
+    Custom { polygon: Vec<Point2> },
+}
+
+pub struct DrillHole {
+    pub diameter: Length,
+    pub plating_thickness: Length,
+    pub is_via: bool,
+    pub via_type: ViaType,
+}
+
+pub enum ViaType {
+    ThroughHole,
+    Blind,
+    Buried,
+    MicroVia,
+    ThermalVia,
+}
+
+// 3D voxel representation (for FEM meshing)
+pub struct VoxelGrid {
+    pub resolution: VoxelResolution,
+    pub bounds: BoundingBox3,
+    pub voxels: Vec<Voxel>,
+}
+
+pub struct Voxel {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+    pub material: MaterialId,
+    pub volume_fraction: f64,
+}
+
+pub struct VoxelResolution {
+    pub dx: Length,
+    pub dy: Length,
+    pub dz: Length,
+}
+
+pub struct CopperArea {
+    pub layer: LayerId,
+    pub polygon: Vec<Point2>,
+    pub area: f64,
+    pub copper_coverage: f64,
+}
+```
+
+---
+
+### Domain 2: File Format Parsers
+
+#### `tpt-elec-gerber`
+
+Gerber RS-274X parser. Primary input format for PCB fabrication.
+
+```rust
+pub struct GerberParser {
+    state: GerberState,
+}
+
+pub struct GerberState {
+    pub current_units: Units,
+    pub format: FormatSpec,
+    pub aperture_macros: HashMap<String, ApertureMacro>,
+    pub apertures: HashMap<u32, Aperture>,
+    pub polarity: Polarity,
+    pub interpolation: InterpolationMode,
+}
+
+pub struct ParsedGerber {
+    pub layer_name: String,
+    pub image_type: ImageType,
+    pub primitives: Vec<Primitive>,
+    pub regions: Vec<Region>,
+}
+
+pub enum Primitive {
+    Line { start: Point2, end: Point2, aperture: ApertureId },
+    Arc { start: Point2, end: Point2, center: Point2, aperture: ApertureId },
+    Flash { position: Point2, aperture: ApertureId },
+    Region { boundary: Vec<Segment>, polarity: Polarity },
+}
+
+pub enum Aperture {
+    Circle { diameter: Length, hole: Option<Length> },
+    Rectangle { width: Length, height: Length, hole: Option<Length> },
+    Obround { width: Length, height: Length },
+    Polygon { vertices: u32, diameter: Length, rotation: Angle },
+    Macro { name: String, parameters: Vec<f64> },
+}
+
+impl GerberParser {
+    pub fn parse(input: &str) -> Result<ParsedGerber, GerberError> {
+        // Parse FS, MO, AD, D01, D02, D03, G01/G02/G03
+        // Handle aperture macros (%AM commands)
+    }
+    
+    pub fn parse_drill(input: &str) -> Result<ParsedDrill, GerberError> {
+        // Parse Excellon drill file
+    }
+}
+```
+
+**Gerber files to parse:**
+- `*.GTL` / `*.GBL` — Top/Bottom copper layers
+- `*.GTS` / `*.GBS` — Solder mask
+- `*.GTO` / `*.GBO` — Silkscreen
+- `*.GTP` / `*.GBP` — Solder paste
+- `*.GKO` / `*.GM1` — Board outline
+- `*.DRL` — Excellon drill file
+
+#### `tpt-elec-kicad`
+
+KiCad native format parser.
+
+```rust
+pub struct KiCadParser;
+
+pub struct ParsedKiCadBoard {
+    pub stackup: Stackup,
+    pub components: Vec<Component>,
+    pub traces: Vec<Trace>,
+    pub zones: Vec<Zone>,
+    pub vias: Vec<Via>,
+    pub net_classes: Vec<NetClass>,
+}
+
+pub struct Zone {
+    pub net: NetId,
+    pub layer: LayerId,
+    pub polygon: Vec<Point2>,
+    pub fill_mode: ZoneFill,
+    pub thermal_relief: bool,
+}
+
+impl KiCadParser {
+    pub fn parse_pcb(input: &str) -> Result<ParsedKiCadBoard, KiCadError> {
+        // Parse S-expressions from .kicad_pcb
+    }
+    
+    pub fn parse_schematic(input: &str) -> Result<ParsedSchematic, KiCadError> {
+        // Extract netlist, component values, power nets
+    }
+}
+```
+
+#### `tpt-elec-odbpp`
+
+ODB++ parser. Industry standard for manufacturing data exchange.
+
+```rust
+pub struct OdbppParser;
+
+impl OdbppParser {
+    pub fn parse(path: &Path) -> Result<OdbppDesign, OdbppError> {
+        // ODB++ is a ZIP archive containing XML/text files
+        // Parse layers, features, attributes
+    }
+}
+```
+
+#### `tpt-elec-ipc2581`
+
+IPC-2581 parser. Modern XML-based standard replacing Gerber.
+
+```rust
+pub struct Ipc2581Parser;
+
+impl Ipc2581Parser {
+    pub fn parse(input: &str) -> Result<Ipc2581Design, Ipc2581Error> {
+        // Parse IPC-2581-C XML format
+        // Extract stackup, nets, components, traces
+    }
+}
+```
+
+#### `tpt-elec-touchstone`
+
+Touchstone S-parameter file parser.
+
+```rust
+pub struct TouchstoneParser;
+
+impl TouchstoneParser {
+    pub fn parse(input: &str) -> Result<SParameters, TouchstoneError> {
+        // Parse Touchstone format:
+        // # GHz S MA R 50
+        // 1.0 0.5 -30 0.8 170 0.1 45 0.3 -60
+    }
+}
+```
+
+#### `tpt-elec-spice-netlist`
+
+SPICE netlist parser.
+
+```rust
+pub struct SpiceNetlistParser;
+
+impl SpiceNetlistParser {
+    pub fn parse(input: &str) -> Result<Circuit, SpiceError> {
+        // Parse SPICE syntax:
+        // R1 node1 node2 10k
+        // C1 node1 0 100n
+        // M1 drain gate source 0 NMOS W=10u L=1u
+        // .model NMOS NMOS (LEVEL=1 VTO=0.7 KP=110u)
+        // .tran 1n 10u
+        // .ac dec 100 1 1G
+        // .subckt opamp in+ in- out
+        // .ends
+    }
+}
+```
+
+---
+
+### Domain 3: Thermal Analysis
+
+#### `tpt-elec-thermal`
+
+Steady-state and transient thermal FEM.
+
+```rust
+pub struct ThermalSolver {
+    mesh: VoxelGrid,
+    materials: MaterialDatabase,
+    boundary_conditions: Vec<BoundaryCondition>,
+}
+
+pub enum BoundaryCondition {
+    FixedTemperature { nodes: Vec<u32>, temp: f64 },
+    Convection { surface: Vec<u32>, h: f64, t_ambient: f64 },
+    Radiation { surface: Vec<u32>, emissivity: f64, t_surroundings: f64 },
+    HeatFlux { surface: Vec<u32>, flux: f64 },
+    HeatSource { nodes: Vec<u32>, power: f64 },
+}
+
+impl ThermalSolver {
+    pub fn solve_steady_state(&self) -> ThermalResult {
+        // Assemble global conductivity matrix [K]
+        // Apply boundary conditions
+        // Solve [K]{T} = {Q} using Conjugate Gradient
+        // Return nodal temperatures
+    }
+    
+    pub fn solve_transient(
+        &self,
+        t_end: f64,
+        dt: f64,
+        initial_temp: f64,
+    ) -> TransientResult {
+        // Explicit/implicit time integration
+        // [C]{dT/dt} + [K]{T} = {Q(t)}
+    }
+}
+
+pub struct ThermalResult {
+    pub temperatures: Vec<f64>,
+    pub max_temp: f64,
+    pub max_temp_location: (u32, u32, u32),
+    pub heat_flux: Vec<Vector3>,
+}
+```
+
+#### `tpt-elec-joule`
+
+Joule heating (electro-thermal coupling).
+
+```rust
+pub struct JouleHeatingSolver {
+    thermal: ThermalSolver,
+    electrical: ElectricalSolver,
+}
+
+impl JouleHeatingSolver {
+    pub fn solve_coupled(
+        &self,
+        voltage_sources: Vec<VoltageSource>,
+        iterations: u32,
+    ) -> CoupledResult {
+        // Iterative coupling:
+        // 1. Solve electrical: [G]{V} = {I}
+        // 2. Calculate Joule heating: Q = I²R per voxel
+        // 3. Solve thermal: [K]{T} = {Q}
+        // 4. Update resistivity: ρ(T) = ρ₀(1 + α·ΔT)
+        // 5. Repeat until convergence
+    }
+}
+
+pub struct CoupledResult {
+    pub thermal: ThermalResult,
+    pub electrical: ElectricalResult,
+    pub power_dissipation: Vec<f64>,
+    pub converged: bool,
+    pub iterations: u32,
+}
+```
+
+#### `tpt-elec-convection`
+
+Forced and natural convection modeling.
+
+```rust
+pub struct ConvectionModel {
+    pub convection_type: ConvectionType,
+    pub heat_transfer_coefficient: f64,  // W/(m²·K)
+    pub ambient_temperature: f64,
+}
+
+pub enum ConvectionType {
+    Natural { orientation: Orientation },
+    Forced {
+        air_velocity: f64,      // m/s
+        direction: Vector3,
+        fluid: Fluid,
+    },
+}
+
+impl ConvectionModel {
+    pub fn calculate_h(
+        &self,
+        surface_area: f64,
+        characteristic_length: f64,
+        temperature_difference: f64,
+    ) -> f64 {
+        // Calculate Nusselt number based on Rayleigh/Reynolds
+        // Natural: Nu = C * Ra^n
+        // Forced: Nu = C * Re^m * Pr^(1/3)
+        // h = Nu * k / L
+    }
+}
+```
+
+---
+
+### Domain 4: Circuit Simulation (SPICE)
+
+#### `tpt-elec-spice-core`
+
+SPICE simulation engine core.
+
+```rust
+pub struct Circuit {
+    pub name: String,
+    pub nodes: Vec<Node>,
+    pub components: Vec<CircuitComponent>,
+    pub sources: Vec<Source>,
+}
+
+pub struct Node {
+    pub id: NodeId,
+    pub name: String,
+    pub is_ground: bool,
+}
+
+pub enum CircuitComponent {
+    Resistor { node1: NodeId, node2: NodeId, value: f64 },
+    Capacitor { node1: NodeId, node2: NodeId, value: f64 },
+    Inductor { node1: NodeId, node2: NodeId, value: f64 },
+    Diode { anode: NodeId, cathode: NodeId, model: DiodeModel },
+    Mosfet { gate: NodeId, drain: NodeId, source: NodeId, model: MosfetModel },
+    Bjt { base: NodeId, collector: NodeId, emitter: NodeId, model: BjtModel },
+    VoltageSource { pos: NodeId, neg: NodeId, waveform: Waveform },
+    CurrentSource { pos: NodeId, neg: NodeId, waveform: Waveform },
+    OpAmp { inv: NodeId, noninv: NodeId, out: NodeId, model: OpAmpModel },
+}
+
+// Modified Nodal Analysis (MNA)
+pub struct MnaMatrix {
+    pub g: DenseMatrix<f64>,   // Conductance matrix
+    pub c: DenseMatrix<f64>,   // Capacitance matrix
+    pub b: DenseVector<f64>,   // Source vector
+}
+
+pub enum Analysis {
+    DcOperatingPoint,
+    DcSweep { source: SourceId, start: f64, stop: f64, step: f64 },
+    AcAnalysis { start_freq: f64, stop_freq: f64, points_per_decade: u32 },
+    Transient { t_start: f64, t_stop: f64, t_step: f64 },
+    NoiseAnalysis { input_source: SourceId, output_node: NodeId },
+}
+```
+
+#### `tpt-elec-spice-models`
+
+Device models for SPICE simulation.
+
+```rust
+// MOSFET compact models
+pub struct MosfetModel {
+    pub model_level: MosfetLevel,
+    pub parameters: MosfetParameters,
+}
+
+pub enum MosfetLevel {
+    Level1,      // Simple square-law model
+    Level2,      // Geometry effects
+    Level3,      // Semi-empirical
+    BSIM3,       // Industry standard
+    BSIM4,       // Advanced nodes
+    EKV,         // Low-power analog design
+}
+
+pub struct MosfetParameters {
+    pub vth0: f64,        // Zero-bias threshold voltage
+    pub kp: f64,          // Transconductance parameter
+    pub lambda: f64,      // Channel length modulation
+    pub gamma: f64,       // Body effect coefficient
+    pub phi: f64,         // Surface potential
+    pub w: Length,        // Channel width
+    pub l: Length,        // Channel length
+    pub cox: f64,         // Gate oxide capacitance per area
+}
+
+// Diode models
+pub struct DiodeModel {
+    pub is: f64,          // Saturation current
+    pub n: f64,           // Ideality factor
+    pub rs: f64,          // Series resistance
+    pub cjo: f64,         // Junction capacitance
+    pub vj: f64,          // Junction potential
+    pub m: f64,           // Grading coefficient
+    pub bv: f64,          // Reverse breakdown voltage
+    pub ibv: f64,         // Current at breakdown
+}
+
+impl DiodeModel {
+    pub fn current(&self, voltage: f64, temperature: f64) -> f64 {
+        let vt = 8.617e-5 * temperature;  // Thermal voltage
+        self.is * ((voltage / (self.n * vt)).exp() - 1.0)
+    }
+}
+```
+
+#### `tpt-elec-spice-analysis`
+
+SPICE analysis algorithms.
+
+```rust
+pub struct SpiceAnalyzer {
+    circuit: Circuit,
+}
+
+impl SpiceAnalyzer {
+    pub fn dc_operating_point(&self) -> Result<DcResult, SpiceError> {
+        // Newton-Raphson iteration for non-linear devices
+        // Solve MNA matrix at convergence
+    }
+    
+    pub fn ac_analysis(
+        &self,
+        start_freq: f64,
+        stop_freq: f64,
+        points_per_decade: u32,
+    ) -> Result<AcResult, SpiceError> {
+        // Small-signal analysis
+        // Linearize around DC operating point
+        // Solve complex MNA at each frequency
+    }
+    
+    pub fn transient(
+        &self,
+        t_stop: f64,
+        t_step: f64,
+    ) -> Result<TransientResult, SpiceError> {
+        // Trapezoidal or Gear integration
+        // Time-stepping with adaptive step size
+    }
+    
+    pub fn noise_analysis(
+        &self,
+        input_source: SourceId,
+        output_node: NodeId,
+    ) -> Result<NoiseResult, SpiceError> {
+        // Calculate thermal, shot, flicker noise contributions
+        // Integrate over frequency band
+    }
+}
+```
+
+---
+
+### Domain 5: Signal Integrity & Power Integrity
+
+#### `tpt-elec-si-core`
+
+Transmission line models and S-parameters.
+
+```rust
+pub struct TransmissionLine {
+    pub line_type: LineType,
+    pub length: Length,
+    pub parameters: LineParameters,
+}
+
+pub enum LineType {
+    Microstrip,
+    Stripline,
+    CoplanarWaveguide,
+    DifferentialPair,
+}
+
+pub struct LineParameters {
+    pub z0: f64,
+    pub z0_odd: Option<f64>,
+    pub z0_even: Option<f64>,
+    pub propagation_delay: f64,
+    pub loss_tangent: f64,
+    pub skin_effect: f64,
+}
+
+// S-parameters
+pub struct SParameters {
+    pub frequencies: Vec<f64>,
+    pub data: Vec<SParameterMatrix>,
+}
+
+pub struct SParameterMatrix {
+    pub s11: Complex<f64>,
+    pub s21: Complex<f64>,
+    pub s12: Complex<f64>,
+    pub s22: Complex<f64>,
+}
+```
+
+#### `tpt-elec-si-impedance`
+
+Characteristic impedance calculators (IPC-2141, Hammerstad-Jensen).
+
+```rust
+pub struct ImpedanceCalculator;
+
+impl ImpedanceCalculator {
+    pub fn microstrip(
+        trace_width: Length,
+        trace_thickness: Length,
+        dielectric_height: Length,
+        er: f64,
+    ) -> LineParameters {
+        // Hammerstad-Jensen equations
+        // Effective dielectric constant
+        // Characteristic impedance
+        // Propagation delay
+    }
+    
+    pub fn stripline(
+        trace_width: Length,
+        trace_thickness: Length,
+        dielectric_height_above: Length,
+        dielectric_height_below: Length,
+        er: f64,
+    ) -> LineParameters {
+        // Symmetric/asymmetric stripline
+    }
+    
+    pub fn differential_pair(
+        trace_width: Length,
+        trace_spacing: Length,
+        dielectric_height: Length,
+        er: f64,
+    ) -> LineParameters {
+        // Coupled microstrip/stripline
+        // Odd/even mode impedances
+    }
+}
+```
+
+#### `tpt-elec-si-eye`
+
+Eye diagram generation and analysis.
+
+```rust
+pub struct EyeDiagram {
+    pub bit_rate: f64,
+    pub ui: f64,
+    pub eye_height: f64,
+    pub eye_width: f64,
+    pub jitter: JitterMetrics,
+    pub mask: Option<EyeMask>,
+}
+
+pub struct JitterMetrics {
+    pub total_jitter: f64,
+    pub random_jitter: f64,
+    pub deterministic_jitter: f64,
+    pub peak_to_peak: f64,
+}
+
+pub enum EyeMask {
+    PcieGen1,
+    PcieGen2,
+    PcieGen3,
+    PcieGen4,
+    PcieGen5,
+    PcieGen6,
+    Ddr4,
+    Ddr5,
+    Usb3,
+    Usb4,
+    Ethernet10G,
+    Custom { points: Vec<(f64, f64)> },
+}
+
+impl EyeDiagram {
+    pub fn from_waveform(
+        waveform: &[f64],
+        bit_rate: f64,
+        samples_per_ui: u32,
+    ) -> EyeDiagram {
+        // Overlay all UI periods
+        // Calculate eye height, width
+        // Separate jitter components
+    }
+    
+    pub fn check_mask_compliance(&self) -> MaskResult {
+        // Check if eye diagram passes mask
+        // Calculate mask margin
+    }
+}
+```
+
+#### `tpt-elec-pi-pdn`
+
+Power Delivery Network impedance analysis.
+
+```rust
+pub struct PdnAnalysis {
+    pub target_impedance: f64,
+    pub frequency_range: (f64, f64),
+    pub decoupling_caps: Vec<DecouplingCap>,
+    pub plane_capacitance: f64,
+    pub vrm_model: VrmModel,
+}
+
+pub struct DecouplingCap {
+    pub value: f64,
+    pub esr: f64,
+    pub esl: f64,
+    pub quantity: u32,
+    pub mount_inductance: f64,
+}
+
+impl PdnAnalysis {
+    pub fn impedance_profile(&self) -> ImpedanceProfile {
+        // Calculate PDN impedance vs frequency
+        // VRM + bulk caps + MLCCs + plane capacitance
+    }
+    
+    pub fn optimize_decoupling(
+        &self,
+        target_z: f64,
+        available_caps: &[CapacitorPart],
+    ) -> DecouplingSolution {
+        // Find optimal capacitor values/quantities
+        // Minimize impedance across frequency band
+    }
+}
+```
+
+---
+
+### Domain 6: RF / Microwave / Antenna
+
+#### `tpt-elec-rf-core`
+
+Smith chart and impedance matching.
+
+```rust
+pub struct SmithChart;
+
+impl SmithChart {
+    pub fn impedance_to_reflection(z: Complex<f64>, z0: f64) -> Complex<f64> {
+        // Γ = (Z - Z0) / (Z + Z0)
+    }
+    
+    pub fn reflection_to_impedance(gamma: Complex<f64>, z0: f64) -> Complex<f64> {
+        // Z = Z0 * (1 + Γ) / (1 - Γ)
+    }
+}
+
+pub enum MatchingTopology {
+    LNetwork,
+    PiNetwork,
+    TNetwork,
+    StubMatch,
+    TransformerMatch,
+}
+
+pub struct MatchingNetwork {
+    pub topology: MatchingTopology,
+    pub elements: Vec<MatchingElement>,
+    pub bandwidth: (f64, f64),
+    pub max_vswr: f64,
+}
+
+pub enum MatchingElement {
+    SeriesInductor { value: f64 },
+    SeriesCapacitor { value: f64 },
+    ShuntInductor { value: f64 },
+    ShuntCapacitor { value: f64 },
+    TransmissionLine { z0: f64, length_electrical: f64 },
+}
+
+pub struct MatchingDesigner;
+
+impl MatchingDesigner {
+    pub fn l_network(
+        z_source: Complex<f64>,
+        z_load: Complex<f64>,
+        frequency: f64,
+    ) -> Vec<MatchingNetwork> {
+        // Calculate all possible L-network solutions
+    }
+    
+    pub fn pi_network(
+        z_source: Complex<f64>,
+        z_load: Complex<f64>,
+        frequency: f64,
+        q: f64,
+    ) -> MatchingNetwork {
+        // Pi-network synthesis
+    }
+}
+```
+
+#### `tpt-elec-rf-filters`
+
+Filter synthesis.
+
+```rust
+pub enum FilterType {
+    Butterworth { order: u32 },
+    ChebyshevType1 { order: u32, ripple_db: f64 },
+    ChebyshevType2 { order: u32, stopband_db: f64 },
+    Elliptic { order: u32, passband_ripple: f64, stopband_attenuation: f64 },
+    Bessel { order: u32 },
+}
+
+pub enum FilterResponse {
+    LowPass { cutoff: f64 },
+    HighPass { cutoff: f64 },
+    BandPass { center: f64, bandwidth: f64 },
+    BandStop { center: f64, bandwidth: f64 },
+}
+
+pub struct FilterSynthesizer;
+
+impl FilterSynthesizer {
+    pub fn synthesize(
+        filter_type: FilterType,
+        response: FilterResponse,
+        impedance: f64,
+    ) -> Filter {
+        // Generate component values (L, C) for ladder network
+        // Apply frequency transformations for HP/BP/BS
+    }
+}
+
+pub struct Filter {
+    pub topology: FilterTopology,
+    pub components: Vec<FilterComponent>,
+    pub s_parameters: SParameters,
+}
+```
+
+#### `tpt-elec-rf-antenna`
+
+Antenna pattern calculation.
+
+```rust
+pub struct Antenna {
+    pub antenna_type: AntennaType,
+    pub frequency: f64,
+    pub gain_dbi: f64,
+    pub vswr: f64,
+    pub radiation_pattern: RadiationPattern,
+    pub polarization: Polarization,
+}
+
+pub enum AntennaType {
+    Dipole { length: Length },
+    Monopole { length: Length, ground_plane: bool },
+    Patch { width: Length, height: Length, substrate: MaterialId },
+    Yagi { elements: Vec<YagiElement> },
+    Helical { diameter: Length, pitch: Length, turns: u32 },
+    Custom { geometry: Vec<Point3> },
+}
+
+pub struct RadiationPattern {
+    pub theta: Vec<f64>,
+    pub phi: Vec<f64>,
+    pub gain: Vec<Vec<f64>>,
+}
+
+// RF link budget
+pub struct LinkBudget {
+    pub tx_power_dbm: f64,
+    pub tx_antenna_gain_dbi: f64,
+    pub path_loss_db: f64,
+    pub rx_antenna_gain_dbi: f64,
+    pub rx_sensitivity_dbm: f64,
+    pub margin_db: f64,
+}
+
+impl LinkBudget {
+    pub fn free_space_path_loss(frequency: f64, distance: Length) -> f64 {
+        // FSPL = 20*log10(d) + 20*log10(f) + 32.44 (km, MHz)
+    }
+}
+```
+
+---
+
+### Domain 7: Power Electronics
+
+#### `tpt-elec-power-core`
+
+Converter topologies and design.
+
+```rust
+pub enum ConverterTopology {
+    Buck { vin: f64, vout: f64, iout: f64, fsw: f64 },
+    Boost { vin: f64, vout: f64, iout: f64, fsw: f64 },
+    BuckBoost { vin: f64, vout: f64, iout: f64, fsw: f64 },
+    Flyback { vin: f64, vout: f64, pout: f64, fsw: f64 },
+    Forward { vin: f64, vout: f64, pout: f64, fsw: f64 },
+    HalfBridge { vin: f64, vout: f64, pout: f64, fsw: f64 },
+    FullBridge { vin: f64, vout: f64, pout: f64, fsw: f64 },
+    LLC { vin: f64, vout: f64, pout: f64, fsw: f64 },
+}
+
+pub struct ConverterDesign {
+    pub topology: ConverterTopology,
+    pub components: ConverterComponents,
+    pub efficiency: f64,
+    pub loop_bandwidth: f64,
+    pub phase_margin: f64,
+}
+
+pub struct ConverterComponents {
+    pub inductor: Inductor,
+    pub output_cap: Capacitor,
+    pub input_cap: Capacitor,
+    pub switch: PowerSwitch,
+    pub diode: PowerDiode,
+    pub feedback: FeedbackNetwork,
+}
+```
+
+#### `tpt-elec-power-magnetics`
+
+Inductor and transformer design.
+
+```rust
+pub struct Inductor {
+    pub inductance: f64,
+    pub current_rating: f64,
+    pub saturation_current: f64,
+    pub dcr: f64,
+    pub core: MagneticCore,
+    pub winding: Winding,
+}
+
+pub struct MagneticCore {
+    pub core_type: CoreType,
+    pub material: CoreMaterial,
+    pub al_value: f64,
+    pub ae: f64,
+    pub le: f64,
+    pub ve: f64,
+}
+
+pub enum CoreType {
+    Toroid { od: Length, id: Length, height: Length },
+    ECore { size: String },
+    PQCore { size: String },
+    RMCore { size: String },
+    Custom { geometry: Vec<Point3> },
+}
+
+pub enum CoreMaterial {
+    Ferrite { material: String },
+    IronPowder { material: String },
+    KoolMu,
+    MPP,
+    Air,
+}
+
+// Core loss calculation (Steinmetz equation)
+pub struct CoreLossCalculator;
+
+impl CoreLossCalculator {
+    pub fn steinmetz(
+        frequency: f64,
+        b_peak: f64,
+        material: &CoreMaterial,
+    ) -> f64 {
+        // Pv = k * f^α * B^β (mW/cm³)
+    }
+}
+```
+
+#### `tpt-elec-power-control`
+
+Control loop design and stability analysis.
+
+```rust
+pub struct ControlLoop {
+    pub plant: TransferFunction,
+    pub compensator: TransferFunction,
+    pub crossover_frequency: f64,
+    pub phase_margin: f64,
+    pub gain_margin: f64,
+}
+
+pub struct TransferFunction {
+    pub numerator: Vec<f64>,
+    pub denominator: Vec<f64>,
+}
+
+impl ControlLoop {
+    pub fn bode_plot(&self, freq_range: (f64, f64)) -> BodePlot {
+        // Calculate magnitude and phase vs frequency
+    }
+    
+    pub fn stability_margins(&self) -> StabilityMargins {
+        // Find crossover frequency, phase margin, gain margin
+    }
+}
+
+pub enum CompensatorType {
+    TypeI,    // Integrator only
+    TypeII,   // Integrator + one zero/pole
+    TypeIII,  // Integrator + two zeros/poles
+}
+
+pub struct CompensatorDesigner;
+
+impl CompensatorDesigner {
+    pub fn design(
+        plant: &TransferFunction,
+        compensator_type: CompensatorType,
+        crossover_freq: f64,
+        phase_margin_target: f64,
+    ) -> TransferFunction {
+        // Calculate compensator component values
+        // Achieve target crossover and phase margin
+    }
+}
+```
+
+---
+
+### Domain 8: Semiconductor Device Modeling
+
+#### `tpt-elec-semi-core`
+
+Semiconductor physics fundamentals.
+
+```rust
+pub struct Semiconductor {
+    pub material: SemiMaterial,
+    pub doping: DopingProfile,
+    pub temperature: f64,
+}
+
+pub enum SemiMaterial {
+    Silicon,
+    SiliconCarbide { polytype: String },
+    GalliumNitride,
+    GalliumArsenide,
+    Germanium,
+}
+
+pub struct DopingProfile {
+    pub profile_type: DopingType,
+    pub concentration: f64,
+    pub depth: Length,
+}
+
+pub enum DopingType {
+    Uniform { concentration: f64 },
+    Gaussian { peak: f64, depth: Length },
+    Exponential { surface: f64, decay_length: Length },
+}
+```
+
+#### `tpt-elec-semi-mosfet`
+
+MOSFET compact models.
+
+```rust
+pub struct MosfetModel {
+    pub model_level: MosfetLevel,
+    pub parameters: MosfetParameters,
+}
+
+impl MosfetModel {
+    pub fn drain_current(&self, vgs: f64, vds: f64, vbs: f64) -> f64 {
+        match self.model_level {
+            MosfetLevel::Level1 => {
+                let vth = self.threshold_voltage(vbs);
+                if vgs < vth {
+                    0.0
+                } else if vds < vgs - vth {
+                    let kp = self.parameters.kp;
+                    let w = self.parameters.w.as_meters();
+                    let l = self.parameters.l.as_meters();
+                    kp * (w / l) * ((vgs - vth) * vds - 0.5 * vds * vds)
+                } else {
+                    let kp = self.parameters.kp;
+                    let w = self.parameters.w.as_meters();
+                    let l = self.parameters.l.as_meters();
+                    let lambda = self.parameters.lambda;
+                    0.5 * kp * (w / l) * (vgs - vth).powi(2) * (1.0 + lambda * vds)
+                }
+            }
+            // ... other levels
+        }
+    }
+    
+    pub fn transconductance(&self, vgs: f64, vds: f64) -> f64 {
+        // gm = dId/dVgs
+    }
+    
+    pub fn output_conductance(&self, vgs: f64, vds: f64) -> f64 {
+        // gds = dId/dVds
+    }
+}
+```
+
+#### `tpt-elec-semi-process`
+
+Process Design Kit abstractions.
+
+```rust
+pub struct ProcessDesignKit {
+    pub process_name: String,
+    pub node: TechnologyNode,
+    pub devices: Vec<DeviceModel>,
+    pub interconnect: InterconnectModels,
+    pub design_rules: DesignRules,
+}
+
+pub enum TechnologyNode {
+    Micron(f64),
+    Nanometer(f64),
+}
+```
+
+---
+
+### Domain 9: EMC / EMI Compliance
+
+#### `tpt-elec-emc-core`
+
+EMC standards and limit lines.
+
+```rust
+pub enum EmcStandard {
+    Cispr32ClassA,
+    Cispr32ClassB,
+    FccPart15ClassA,
+    FccPart15ClassB,
+    MilStd461,
+    Do160,
+    Iec61000,
+    Automotive { standard: String },
+}
+
+pub struct EmcLimit {
+    pub standard: EmcStandard,
+    pub test_type: EmcTestType,
+    pub frequency_range: (f64, f64),
+    pub limit_line: Vec<LimitPoint>,
+}
+
+pub enum EmcTestType {
+    RadiatedEmissions,
+    ConductedEmissions,
+    RadiatedImmunity,
+    ConductedImmunity,
+    Esd,
+    Surge,
+    ElectricalFastTransient,
+}
+```
+
+#### `tpt-elec-emc-emissions`
+
+Emissions prediction.
+
+```rust
+pub struct EmissionsPredictor;
+
+impl EmissionsPredictor {
+    pub fn radiated_emissions(
+        clock_frequency: f64,
+        trace_length: Length,
+        current: f64,
+        rise_time: f64,
+    ) -> EmissionsSpectrum {
+        // Calculate harmonic spectrum from trapezoidal waveform
+        // Apply antenna factor for trace radiation
+    }
+    
+    pub fn conducted_emissions(
+        switching_frequency: f64,
+        di_dt: f64,
+        parasitic_inductance: f64,
+    ) -> EmissionsSpectrum {
+        // Predict noise coupled to power lines
+    }
+}
+
+pub struct EmissionsSpectrum {
+    pub frequencies: Vec<f64>,
+    pub amplitudes_dbuv: Vec<f64>,
+    pub harmonics: Vec<Harmonic>,
+}
+```
+
+#### `tpt-elec-emc-shielding`
+
+Shielding effectiveness calculation.
+
+```rust
+pub struct ShieldingCalculator;
+
+impl ShieldingCalculator {
+    pub fn plane_wave_shielding(
+        material: ShieldMaterial,
+        thickness: Length,
+        frequency: f64,
+    ) -> f64 {
+        // SE = R + A + B (dB)
+        // R = reflection loss
+        // A = absorption loss
+        // B = multiple reflection correction
+    }
+}
+
+pub enum ShieldMaterial {
+    Copper,
+    Aluminum,
+    Steel,
+    MuMetal,
+    ConductivePaint { conductivity: f64 },
+    Custom { conductivity: f64, permeability: f64 },
+}
+```
+
+---
+
+### Domain 10: Battery / Energy Storage
+
+#### `tpt-elec-battery-core`
+
+Battery cell models.
+
+```rust
+pub struct BatteryCell {
+    pub chemistry: BatteryChemistry,
+    pub capacity_ah: f64,
+    pub nominal_voltage: f64,
+    pub internal_resistance: f64,
+    pub thermal_model: CellThermalModel,
+}
+
+pub enum BatteryChemistry {
+    LithiumIon { cathode: CathodeMaterial },
+    LithiumPolymer,
+    NickelMetalHydride,
+    LeadAcid,
+    SolidState,
+}
+
+pub enum CathodeMaterial {
+    Nmc { ratio: String },
+    Lfp,
+    Lco,
+    Nca,
+    Lto,
+}
+
+// Equivalent circuit model
+pub struct EquivalentCircuitModel {
+    pub ocv: OcvCurve,
+    pub r0: f64,
+    pub rc_pairs: Vec<RcPair>,
+}
+
+pub struct RcPair {
+    pub r: f64,
+    pub c: f64,
+}
+
+impl EquivalentCircuitModel {
+    pub fn terminal_voltage(
+        &self,
+        soc: f64,
+        current: f64,
+        temperature: f64,
+    ) -> f64 {
+        let ocv = self.ocv.voltage_at_soc(soc, temperature);
+        let v_drop = current * self.r0;
+        ocv - v_drop
+    }
+}
+```
+
+#### `tpt-elec-battery-bms`
+
+Battery Management System algorithms.
+
+```rust
+pub enum SocEstimator {
+    CoulombCounting { efficiency: f64 },
+    KalmanFilter { model: EquivalentCircuitModel },
+    ExtendedKalmanFilter,
+    UnscentedKalmanFilter,
+    NeuralNetwork,
+}
+
+pub struct KalmanFilterEstimator {
+    pub model: EquivalentCircuitModel,
+    pub state: BatteryState,
+    pub covariance: Matrix2<f64>,
+    pub process_noise: f64,
+    pub measurement_noise: f64,
+}
+
+pub struct BatteryState {
+    pub soc: f64,
+    pub voltage: f64,
+    pub current: f64,
+    pub temperature: f64,
+}
+
+impl KalmanFilterEstimator {
+    pub fn predict(&mut self, current: f64, dt: f64) {
+        // State prediction step
+    }
+    
+    pub fn update(&mut self, voltage: f64) {
+        // Measurement update step
+    }
+}
+```
+
+#### `tpt-elec-battery-thermal`
+
+Thermal runaway propagation.
+
+```rust
+pub struct ThermalRunawayModel {
+    pub onset_temperature: f64,
+    pub heat_generation_rate: f64,
+    pub propagation_threshold: f64,
+}
+
+impl ThermalRunawayModel {
+    pub fn propagation_risk(
+        &self,
+        cell_temperatures: &[f64],
+        adjacency: &AdjacencyMatrix,
+    ) -> PropagationRisk {
+        // Calculate risk of thermal runaway spreading to adjacent cells
+    }
+}
+```
+
+---
+
+### Domain 11: Manufacturing / Test
+
+#### `tpt-elec-mfg-dfm`
+
+Design Rule Checking.
+
+```rust
+pub struct DrcEngine {
+    pub rules: Vec<DesignRule>,
+}
+
+pub enum DesignRule {
+    TraceWidth { min: Length, net_class: Option<String> },
+    TraceSpacing { min: Length, voltage: Option<f64> },
+    ViaDrillSize { min: Length, max: Length },
+    AnnularRing { min: Length },
+    SolderMask { min_clearance: Length },
+    Silkscreen { min_width: Length },
+    BoardOutline { min_radius: Length },
+    ComponentPlacement { courtyard_clearance: Length },
+}
+
+pub struct DrcResult {
+    pub violations: Vec<Violation>,
+    pub warnings: Vec<Warning>,
+    pub passed: bool,
+}
+```
+
+#### `tpt-elec-mfg-test`
+
+Boundary scan (JTAG / IEEE 1149.1).
+
+```rust
+pub struct BoundaryScanChain {
+    pub devices: Vec<BscanDevice>,
+    pub tck_frequency: f64,
+}
+
+pub struct BscanDevice {
+    pub idcode: u32,
+    pub instruction_length: u32,
+    pub cells: Vec<BscanCell>,
+}
+
+impl BoundaryScanChain {
+    pub fn generate_test_pattern(
+        &self,
+        test_type: BscanTestType,
+    ) -> TestPattern {
+        // Generate JTAG shift patterns
+    }
+}
+
+pub enum BscanTestType {
+    InterconnectTest,
+    PinContinuity,
+    StuckAtFault,
+    SamplePreload,
+    Extest,
+}
+```
+
+#### `tpt-elec-mfg-yield`
+
+Yield prediction.
+
+```rust
+pub struct YieldPredictor;
+
+impl YieldPredictor {
+    pub fn predict_yield(
+        defect_density: f64,
+        board_area: f64,
+        component_count: u32,
+        process_capability: f64,
+    ) -> f64 {
+        // Poisson yield model: Y = e^(-D*A)
+    }
+}
+```
+
+---
+
+## 6. WASM Integration
+
+`tpt-elec-wasm` compiles the entire simulation stack to WebAssembly for browser-based EDA tools.
+
+```rust
+// WASM bindings
+#[wasm_bindgen]
+pub struct WasmThermalSolver {
+    solver: ThermalSolver,
+}
+
+#[wasm_bindgen]
+impl WasmThermalSolver {
+    #[wasm_bindgen(constructor)]
+    pub fn new(gerber_data: &[u8], stackup_json: &str) -> WasmThermalSolver {
+        // Parse Gerber, build mesh, create solver
+    }
+    
+    pub fn solve(&self, power_map: &[f64]) -> WasmThermalResult {
+        // Run simulation, return results
+    }
+    
+    pub fn get_temperature_map(&self) -> Vec<f64> {
+        // Return temperature array for visualization
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmImpedanceCalculator;
+
+#[wasm_bindgen]
+impl WasmImpedanceCalculator {
+    pub fn microstrip(
+        trace_width_mm: f64,
+        trace_thickness_mm: f64,
+        dielectric_height_mm: f64,
+        er: f64,
+    ) -> ImpedanceResult {
+        // Calculate impedance in browser
+    }
+}
+```
+
+**WASM Use Cases:**
+- Browser-based thermal viewer (upload Gerber, see heat map)
+- EDA plugin for real-time impedance checking
+- CI pipeline validation (run simulations in GitHub Actions)
+- Interactive matching network designer
+
+---
+
+## 7. MIT Chain Enforcement
+
+### `deny.toml`
+
+```toml
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0"
+]
+
+copyleft = "deny"
+unlicensed = "deny"
+allow-osi-fsf-free = "neither"
+
+# Explicitly ban problematic crates
+[[licenses.clarify]]
+name = "nalgebra"
+expression = "MIT OR Apache-2.0"
+license-files = [
+    { path = "LICENSE-MIT", hash = 0x38b9d481 },
+]
+```
+
+### License Traps to Avoid
+
+| Domain | GPL Trap | MIT Solution |
+|---|---|---|
+| SPICE simulation | NGSpice (BSD), proprietary model libraries | Clean-room device models in Rust |
+| Signal integrity | HyperLynx, SIwave (proprietary) | IPC-2141 equations, Touchstone parser |
+| RF design | ADS, HFSS (proprietary) | Analytical models, Method of Moments |
+| Power electronics | PLECS, SIMetrix (proprietary) | State-space averaging in Rust |
+| EMC simulation | CST, HFSS (proprietary) | FDTD in Rust, analytical shielding |
+| Battery modeling | PyBaMM (BSD), MATLAB toolboxes | Rust equivalent circuit models |
+| Semiconductor | TCAD tools (Synopsys, Silvaco) | Drift-diffusion in `tpt-fem` |
+| Mesh generation | GMSH (GPL), Netgen (LGPL) | Custom hex/voxel meshing |
+| CFD | OpenFOAM (GPL) | Simplified convection models |
+
+---
+
+## 8. Testing & Validation Strategy
+
+### Unit Tests
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_microstrip_impedance_50_ohm() {
+        // Standard 50Ω microstrip on FR4
+        let result = ImpedanceCalculator::microstrip(
+            Length::mm(0.2),     // Trace width
+            Length::mm(0.035),   // 1oz copper
+            Length::mm(0.2),     // Dielectric height
+            4.4,                 // FR4 er
+        );
+        assert!((result.z0 - 50.0).abs() < 2.0);
+    }
+    
+    #[test]
+    fn test_mosfet_saturation_current() {
+        let model = MosfetModel::level1(
+            MosfetParameters {
+                vth0: 0.7,
+                kp: 110e-6,
+                w: Length::um(10),
+                l: Length::um(1),
+                ..Default::default()
+            }
+        );
+        let id = model.drain_current(2.0, 5.0, 0.0);
+        assert!(id > 0.0);
+    }
+}
+```
+
+### Golden File Tests
+
+```text
+test-data/golden/
+├── thermal/
+│   ├── simple_resistor_board.json
+│   └── 4_layer_bga.json
+├── spice/
+│   ├── rc_lowpass_ac.json
+│   └── buck_converter_transient.json
+├── si/
+│   ├── pcie_gen3_eye.json
+│   └── ddr4_impedance.json
+└── rf/
+    ├── l_network_match.json
+    └── butterworth_filter.json
+```
+
+### Benchmark Tests
+
+```rust
+use criterion::{criterion_group, criterion_main, Criterion};
+
+fn thermal_solver_benchmark(c: &mut Criterion) {
+    let solver = create_test_solver(100, 100, 10); // 100x100x10 voxels
+    
+    c.bench_function("thermal_steady_state_100k_voxels", |b| {
+        b.iter(|| solver.solve_steady_state())
+    });
+}
+
+fn spice_transient_benchmark(c: &mut Criterion) {
+    let circuit = create_buck_converter_circuit();
+    let analyzer = SpiceAnalyzer::new(circuit);
+    
+    c.bench_function("spice_transient_buck", |b| {
+        b.iter(|| analyzer.transient(1e-3, 1e-9))
+    });
+}
+```
+
+### Validation Standards
+
+- **Thermal:** JEDEC JESD51 standards
+- **Impedance:** IPC-2141, IPC-2251
+- **EMC:** CISPR 32, FCC Part 15, IEC 61000
+- **Battery:** UN GTR 20, IEC 62660
+- **Signal Integrity:** PCIe CEM, DDR4/5 JEDEC, USB-IF
+
+---
+
+## 9. Open Source Community & Contribution
+
+### Contribution Workflow
+
+```text
+1. Fork repository
+2. Create feature branch: `feature/my-new-crate`
+3. Write code + tests
+4. Run `cargo fmt`, `cargo clippy`, `cargo test`
+5. Run `cargo deny check licenses`
+6. Submit PR with DCO sign-off
+7. RFC discussion for new crates
+8. Merge after 2 approvals
+```
+
+### Developer Certificate of Origin
+
+All contributions require DCO sign-off:
+
+```text
+Signed-off-by: Jane Doe <jane.doe@example.com>
+```
+
+No Contributor License Agreement (CLA) required.
+
+### RFC Process
+
+New crates or major API changes require an RFC:
+
+```text
+rfcs/
+├── 0001-thermal-fem.md
+├── 0002-spice-mna.md
+├── 0003-si-eye-diagram.md
+├── 0004-rf-matching.md
+└── 0005-battery-kalman.md
+```
+
+RFC template:
+
+```markdown
+# RFC: [Title]
+
+## Summary
+[One paragraph summary]
+
+## Motivation
+[Why is this needed?]
+
+## Detailed Design
+[Technical details]
+
+## Alternatives
+[What other approaches were considered?]
+
+## Unresolved Questions
+[What needs discussion?]
+```
+
+### Release Cadence
+
+- **Minor releases:** Every 6 weeks
+- **Patch releases:** As needed for bug fixes
+- **Major releases:** When breaking API changes accumulate
+- **SemVer:** Strict semantic versioning
+
+---
+
+## 10. Phased Delivery Plan
+
+### Phase 1: Foundation (Months 1-3)
+- `tpt-elec-core`, `tpt-elec-materials`, `tpt-elec-geometry`
+- `tpt-elec-gerber`, `tpt-elec-kicad` parsers
+- `tpt-elec-thermal` (steady-state FEM)
+- `tpt-elec-joule` (Joule heating)
+- **Milestone:** CLI tool that takes Gerber + power map, outputs thermal CSV
+
+### Phase 2: Circuit Simulation (Months 4-6)
+- `tpt-elec-spice-core` (MNA formulation)
+- `tpt-elec-spice-models` (R, L, C, diodes, MOSFETs)
+- `tpt-elec-spice-analysis` (DC, AC, transient)
+- **Milestone:** Simulate a buck converter in pure Rust
+
+### Phase 3: Signal Integrity (Months 7-9)
+- `tpt-elec-si-impedance` (microstrip, stripline calculators)
+- `tpt-elec-si-eye` (eye diagram generation)
+- `tpt-elec-pi-pdn` (power delivery network)
+- **Milestone:** PCIe Gen 4 eye diagram compliance checker
+
+### Phase 4: Power Electronics (Months 10-12)
+- `tpt-elec-power-core` (converter topologies)
+- `tpt-elec-power-magnetics` (inductor design)
+- `tpt-elec-power-control` (Bode plots, compensation)
+- **Milestone:** Automated buck converter design tool
+
+### Phase 5: RF / Microwave (Months 13-15)
+- `tpt-elec-rf-core` (Smith chart, matching)
+- `tpt-elec-rf-filters` (filter synthesis)
+- `tpt-elec-rf-antenna` (basic antenna patterns)
+- **Milestone:** WiFi 6E matching network designer
+
+### Phase 6: EMC / Battery (Months 16-18)
+- `tpt-elec-emc-emissions` (emissions prediction)
+- `tpt-elec-battery-core` (cell models)
+- `tpt-elec-battery-bms` (SOC estimation)
+- **Milestone:** CISPR 32 emissions predictor
+
+### Phase 7: Semiconductor / Manufacturing (Months 19-24)
+- `tpt-elec-semi-mosfet` (compact models)
+- `tpt-elec-mfg-dfm` (design rule checking)
+- `tpt-elec-mfg-test` (boundary scan)
+- **Milestone:** Complete DRC engine for KiCad
+
+### Phase 8: WASM & Ecosystem (Months 25-30)
+- `tpt-elec-wasm` (browser compilation)
+- KiCad plugin integration
+- VS Code extension
+- **Milestone:** Browser-based thermal viewer with real-time simulation
+
+---
+
+## 11. Open Source Business Model
+
+Since `tpt-electronics` is 100% open source, revenue comes from services, not software licensing:
+
+### Revenue Streams
+
+| Stream | Description | Price Point |
+|---|---|---|
+| **Support Contracts** | Priority bug fixes, SLA, dedicated engineer | $5k-50k/year |
+| **Custom Development** | Bespoke crates, custom integrations | $150-300/hr |
+| **Training** | Corporate training on TPT electronics stack | $2k-10k/session |
+| **Certification** | Compliance validation services (EMC, thermal) | $5k-20k/project |
+| **Cloud Compute** | Managed simulation infrastructure (optional) | Usage-based |
+| **Donations** | GitHub Sponsors, Open Collective | Voluntary |
+
+### What We Will Never Do
+
+- ❌ Open-core (free core, paid "enterprise" features)
+- ❌ Source-available licenses (BSL, SSPL, Elastic License)
+- ❌ Telemetry without explicit opt-in
+- ❌ Vendor lock-in through proprietary formats
+- ❌ Dual licensing to extract enterprise fees
+
+### What We Will Always Do
+
+- ✅ MIT OR Apache-2.0 for all code
+- ✅ Public roadmap and RFC process
+- ✅ No paywalls on features
+- ✅ No artificial limitations
+- ✅ Full documentation and examples
+- ✅ Community governance
+
+---
+
+## 12. README Template
+
+```markdown
+# tpt-electronics
+
+A fully open-source, MIT-licensed multiphysics simulation engine for electronic systems.
+
+## Crates
+
+| Crate | Description | Status |
+|---|---|---|
+| `tpt-elec-core` | Core domain types | ✅ Stable |
+| `tpt-elec-thermal` | Thermal FEM analysis | ✅ Stable |
+| `tpt-elec-joule` | Joule heating | ✅ Stable |
+| `tpt-elec-spice-core` | SPICE simulation | 🚧 Alpha |
+| `tpt-elec-si-core` | Signal integrity | 🚧 Alpha |
+| `tpt-elec-rf-core` | RF / Microwave | 📋 Planned |
+| `tpt-elec-power-core` | Power electronics | 📋 Planned |
+| `tpt-elec-battery-core` | Battery modeling | 📋 Planned |
+
+## Quick Start
+
+```rust
+use tpt_elec_thermal::ThermalSolver;
+use tpt_elec_gerber::GerberParser;
+
+fn main() {
+    let gerber = GerberParser::parse(include_str!("board.gtl")).unwrap();
+    let solver = ThermalSolver::from_gerber(&gerber);
+    let result = solver.solve_steady_state();
+    println!("Max temperature: {}°C", result.max_temp);
+}
+```
+
+## License
+
+Licensed under either of
+
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option.
+
+
+
+---
+
+## 13. Summary
+
+`tpt-electronics` is a fully open-source, MIT-licensed, pure-Rust multiphysics simulation engine covering the complete electronics engineering lifecycle:
+
+- **Thermal** — PCB thermal management, Joule heating, convection
+- **Circuit** — SPICE simulation, device models, noise analysis
+- **Signal Integrity** — High-speed traces, eye diagrams, PDN
+- **RF / Microwave** — Matching networks, filters, antennas
+- **Power** — Converters, magnetics, control loops
+- **Semiconductor** — Device physics, compact models
+- **EMC / EMI** — Emissions, immunity, shielding
+- **Battery** — Cell models, BMS, thermal runaway
+- **Manufacturing** — DFM, boundary scan, yield prediction
+
+All crates maintain the strict MIT chain, leverage the TPT substrates (`tpt-math`, `tpt-engineering`, `tpt-science`, `tpt-fem`), and compile to WebAssembly for browser-based simulation.
+
+No proprietary cores. No open-core bait. No GPL traps. Just open source.
+
