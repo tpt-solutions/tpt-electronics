@@ -116,6 +116,20 @@ pub enum FilterElement {
         /// Capacitance [F].
         c: f64,
     },
+    /// Series parallel L-C resonator (band-stop series arm; blocks at ω0).
+    SeriesParallelLc {
+        /// Inductance [H].
+        l: f64,
+        /// Capacitance [F].
+        c: f64,
+    },
+    /// Shunt series L-C resonator (band-stop shunt arm; shorts at ω0).
+    ShuntSeriesLc {
+        /// Inductance [H].
+        l: f64,
+        /// Capacitance [F].
+        c: f64,
+    },
 }
 
 /// Ladder topology orientation.
@@ -279,7 +293,28 @@ impl FilterSynthesizer {
                         ]
                     }
                 }
-                _ => return Err("band-stop synthesis deferred (needs resonator duals)".into()),
+                3 => {
+                    // Band-stop: LP series L(g) → BS shunt series-LC (shorts ω0)
+                    //             LP shunt C(g) → BS series parallel-LC (blocks ω0)
+                    let w_frac = f_high / f_low;
+                    let z0 = impedance;
+                    if is_shunt {
+                        // shunt C(g) → series parallel-LC (blocks ω0):
+                        // L' = Z0·w/(g·ω0), C' = g/(Z0·w·ω0)
+                        vec![FilterElement::SeriesParallelLc {
+                            l: z0 * w_frac / (g * omega_c),
+                            c: g / (z0 * w_frac * omega_c),
+                        }]
+                    } else {
+                        // series L(g) → shunt series-LC (shorts ω0):
+                        // L' = Z0·w/(g·ω0), C' = g/(Z0·w·ω0)
+                        vec![FilterElement::ShuntSeriesLc {
+                            l: z0 * w_frac / (g * omega_c),
+                            c: g / (z0 * w_frac * omega_c),
+                        }]
+                    }
+                }
+                _ => return Err("unsupported response kind".into()),
             };
             components.extend(produced);
         }
@@ -347,6 +382,25 @@ impl Filter {
                         0.0,
                         std::f64::consts::TAU * f * c - 1.0 / (std::f64::consts::TAU * f * l),
                     );
+                    [Complex::ONE, Complex::ZERO, y, Complex::ONE]
+                }
+                FilterElement::SeriesParallelLc { l, c } => {
+                    // Parallel LC in the series arm. Model as L with ESR in
+                    // parallel with C to avoid NaN at exact resonance:
+                    // Z = Z_L·Z_C/(Z_L+Z_C), Z_L = R+jωL, Z_C = 1/(jωC)
+                    let w = std::f64::consts::TAU * f;
+                    let r_esr = 1e-2;
+                    let z_l = Complex::new(r_esr, w * l);
+                    let z_c = Complex::new(0.0, -1.0 / (w * c));
+                    let z_lc = z_l * z_c / (z_l + z_c);
+                    [Complex::ONE, z_lc, Complex::ZERO, Complex::ONE]
+                }
+                FilterElement::ShuntSeriesLc { l, c } => {
+                    // Series LC in the shunt arm: Y = 1/(R_esr + jωL + 1/(jωC))
+                    let w = std::f64::consts::TAU * f;
+                    let r_esr = 1e-2;
+                    let z = Complex::new(r_esr, w * l - 1.0 / (w * c));
+                    let y = z.inv();
                     [Complex::ONE, Complex::ZERO, y, Complex::ONE]
                 }
             };
@@ -589,5 +643,30 @@ mod tests {
         let below = Filter::insertion_loss_db(&filter, f0 / 1.5);
         let above = Filter::insertion_loss_db(&filter, f0 * 1.5);
         assert!((below - above).abs() < 1.0, "below {below} above {above}");
+    }
+
+    #[test]
+    fn band_stop_synthesis_and_response() {
+        let f0 = 100e6;
+        let bw = 20e6;
+        let filter = FilterSynthesizer::synthesize(
+            FilterType::Butterworth { order: 3 },
+            FilterResponse::BandStop {
+                center: f0,
+                bandwidth: bw,
+            },
+            50.0,
+        )
+        .unwrap();
+        // Near center rejection (offset by 1 % of BW to avoid ideal-
+        // resonator NaN in the lossless ABCD cascade)
+        let at_nc = Filter::insertion_loss_db(&filter, f0 + bw * 0.01);
+        assert!(at_nc < -5.0 && at_nc.is_finite(), "near-center {at_nc}");
+        // Passes DC
+        let dc = Filter::insertion_loss_db(&filter, f0 / 20.0);
+        assert!(dc > -1.0, "dc {dc}");
+        // Deep rejection at 5 % off center
+        let deep = Filter::insertion_loss_db(&filter, f0 + bw * 0.05);
+        assert!(deep < -10.0 && deep.is_finite(), "deep {deep}");
     }
 }
