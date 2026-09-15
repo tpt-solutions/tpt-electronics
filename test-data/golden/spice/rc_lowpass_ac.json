@@ -1,0 +1,9 @@
+{
+  "case": "rc_lowpass_ac",
+  "description": "Single-pole RC low-pass, R = 1 kOhm, C = 1 nF, fc = 1/(2*pi*R*C) = 159.1549 kHz. Analytic transfer: |H| = 1/sqrt(1+(f/fc)^2), phase = -atan(f/fc).",
+  "model": "tpt-elec-spice-analysis",
+  "r_ohm": 1000.0,
+  "c_farad": 1.0e-9,
+  "frequencies_hz": [1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0],
+  "magnitude_tolerance_rel": 0.01
+}

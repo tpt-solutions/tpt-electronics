@@ -1,0 +1,18 @@
+[package]
+name = "tpt-elec-core"
+description = "Core domain types, units, and numeric kernels for tpt-electronics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

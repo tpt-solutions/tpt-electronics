@@ -1,0 +1,29 @@
+[package]
+name = "tpt-elec-wasm"
+description = "WebAssembly bindings for tpt-electronics (thermal + impedance)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-gerber = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+tpt-elec-si-impedance = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = { workspace = true }
+
+[lints]
+workspace = true

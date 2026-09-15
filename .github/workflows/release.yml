@@ -1,0 +1,107 @@
+name: Release
+
+# Release automation scaffolding. Publishing happens ONLY on a version tag
+# pushed by a maintainer after the RFC-merged changelog review. Nothing in CI
+# publishes on branch pushes or PRs.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify (fmt, clippy, test, deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses
+
+  build-binaries:
+    name: Build ${{ matrix.target }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p tpt-elec-cli --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tpt-elec-cli-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/
+
+  publish:
+    # Dry-runnable by maintainers; requires CARGO_REGISTRY_TOKEN secret.
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish crates in dependency order
+        run: |
+          set -euo pipefail
+          order=(
+            tpt-elec-core tpt-elec-materials tpt-elec-geometry
+            tpt-elec-gerber tpt-elec-kicad tpt-elec-odbpp tpt-elec-ipc2581
+            tpt-elec-touchstone tpt-elec-spice-core tpt-elec-spice-models
+            tpt-elec-spice-noise tpt-elec-spice-analysis tpt-elec-spice-netlist
+            tpt-elec-thermal tpt-elec-convection tpt-elec-transient tpt-elec-joule
+            tpt-elec-si-core tpt-elec-si-impedance tpt-elec-si-crosstalk
+            tpt-elec-si-eye tpt-elec-pi-pdn tpt-elec-pi-decoupling
+            tpt-elec-rf-core tpt-elec-rf-filters tpt-elec-rf-antenna
+            tpt-elec-rf-mixer tpt-elec-rf-links
+            tpt-elec-power-core tpt-elec-power-magnetics tpt-elec-power-switches
+            tpt-elec-power-control tpt-elec-power-battery
+            tpt-elec-semi-core tpt-elec-semi-mosfet tpt-elec-semi-diode
+            tpt-elec-semi-bjt tpt-elec-semi-process
+            tpt-elec-emc-core tpt-elec-emc-emissions tpt-elec-emc-immunity
+            tpt-elec-emc-shielding tpt-elec-emc-grounding
+            tpt-elec-battery-core tpt-elec-battery-thermal tpt-elec-battery-bms
+            tpt-elec-battery-pack
+            tpt-elec-mfg-dfm tpt-elec-mfg-test tpt-elec-mfg-yield
+          )
+          for crate in "${order[@]}"; do
+            cargo publish -p "$crate" --locked
+          done
+
+  github-release:
+    needs: [verify, build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**
+          generate_release_notes: true

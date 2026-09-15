@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tpt-electronics — browser thermal viewer</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 2rem; background: #10141a; color: #dbe4ee; }
+  h1 { font-weight: 600; }
+  #drop { border: 2px dashed #3c4a5d; border-radius: 12px; padding: 3rem; text-align: center; transition: border-color .2s; }
+  #drop.hover { border-color: #58a6ff; }
+  canvas { image-rendering: pixelated; width: 100%; max-width: 920px; border-radius: 8px; }
+  #status { margin: 1rem 0; font-variant-numeric: tabular-nums; }
+  input, button { font: inherit; padding: .4rem .7rem; background: #1b2430; color: inherit; border: 1px solid #3c4a5d; border-radius: 6px; }
+  table { border-collapse: collapse; margin-top: 1rem; }
+  td { padding: .2rem .6rem; }
+</style>
+</head>
+<body>
+<h1>tpt-electronics browser thermal viewer</h1>
+<p>Drop a top-copper Gerber (<code>.gtl</code>) file, set a heat source, and run
+the same FEM engine that powers the CLI — entirely in your browser, no server.</p>
+
+<div id="drop">Drop a Gerber file here, or <input type="file" id="file"></div>
+
+<table>
+  <tr><td>Source x [mm]</td><td><input id="px" type="number" value="10"></td>
+      <td>y [mm]</td><td><input id="py" type="number" value="10"></td>
+      <td>power [W]</td><td><input id="pw" type="number" value="0.5" step="0.1"></td>
+      <td><button id="run">Simulate</button></td></tr>
+  <tr><td>resolution [mm]</td><td><input id="res" type="number" value="1.0" step="0.25"></td>
+      <td>h_conv [W/m²K]</td><td><input id="h" type="number" value="10"></td>
+      <td colspan="3"></td></tr>
+</table>
+
+<p id="status">Waiting for a file…</p>
+<canvas id="map" width="640" height="440"></canvas>
+
+<script type="module">
+// The wasm-bindgen glue is produced by:
+//   wasm-pack build crates/core/tpt-elec-wasm --target web --out-dir ../../demo/pkg
+// This page expects ./pkg/tpt_elec_wasm.js to exist.
+let init, WasmThermalSolver;
+try {
+  ({ default: init, WasmThermalSolver } = await import("./pkg/tpt_elec_wasm.js"));
+  await init();
+} catch (e) {
+  document.getElementById("status").textContent =
+    "WASM package not built yet — run: wasm-pack build crates/core/tpt-elec-wasm --target web --out-dir demo/pkg";
+}
+
+const drop = document.getElementById("drop");
+const status = document.getElementById("status");
+let gerberBytes = null;
+
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("hover"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("hover"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault(); drop.classList.remove("hover");
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+document.getElementById("file").addEventListener("change", (e) => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+async function loadFile(file) {
+  gerberBytes = new Uint8Array(await file.arrayBuffer());
+  status.textContent = `Loaded ${file.name} (${gerberBytes.length} bytes)`;
+}
+
+document.getElementById("run").addEventListener("click", () => {
+  if (!gerberBytes) { status.textContent = "Load a Gerber file first."; return; }
+  if (!WasmThermalSolver) { return; } // message already shown
+  const cfg = {
+    resolution_mm: parseFloat(document.getElementById("res").value) || 1.0,
+    h_conv: parseFloat(document.getElementById("h").value) || 10.0,
+  };
+  const solver = new WasmThermalSolver(gerberBytes, JSON.stringify(cfg));
+  const px = parseFloat(document.getElementById("px").value) || 0;
+  const py = parseFloat(document.getElementById("py").value) || 0;
+  const pw = parseFloat(document.getElementById("pw").value) || 0;
+  const maxTemp = solver.solve([px, py, pw]);
+  status.textContent = `Max temperature: ${maxTemp.toFixed(1)} °C  (${solver.grid_dimensions().join("×")} cells)`;
+  drawMap(solver.get_temperature_map(), solver.grid_dimensions(), maxTemp);
+});
+
+function drawMap(temps, [nx, ny], maxTemp) {
+  const canvas = document.getElementById("map");
+  const ctx = canvas.getContext("2d");
+  const cell = Math.max(1, Math.floor(Math.min(canvas.width / nx, canvas.height / ny)));
+  const min = Math.min(...temps), max = maxTemp;
+  for (let y = 0; y < ny; y++) {
+    for (let x = 0; x < nx; x++) {
+      const t = temps[x + nx * y];
+      const frac = (t - min) / Math.max(max - min, 1e-9);
+      ctx.fillStyle = heatColor(frac);
+      ctx.fillRect(x * cell, canvas.height - (y + 1) * cell, cell, cell);
+    }
+  }
+}
+
+function heatColor(frac) {
+  // black → red → yellow → white
+  const stops = [[0,0,0],[255,0,0],[255,255,0],[255,255,255]];
+  const s = Math.min(Math.floor(frac * 3), 2);
+  const f = frac * 3 - s;
+  const mix = (a, b) => Math.round(a + (b - a) * f);
+  return `rgb(${mix(stops[s][0], stops[s+1][0])},${mix(stops[s][1], stops[s+1][1])},${mix(stops[s][2], stops[s+1][2])})`;
+}
+</script>
+</body>
+</html>

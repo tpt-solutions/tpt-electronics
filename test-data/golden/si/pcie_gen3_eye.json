@@ -1,0 +1,23 @@
+{
+  "case": "pcie_gen3_eye",
+  "description": "PRBS-7 (seed 0x41, 8 repeats) at PCIe Gen 3 rate (8 GT/s, UI = 125 ps), amplitude 0.8 V total swing, through a first-order channel with the stated time constant. 32 samples per UI.",
+  "model": "tpt-elec-si-eye",
+  "amplitude_v": 0.8,
+  "clean_channel": {
+    "tau_ui": 0.05,
+    "eye_height_v": 0.799584,
+    "eye_width_ps": 123.0957,
+    "total_jitter_ps": 1.9043,
+    "mask": "PcieGen3",
+    "mask_passed": true
+  },
+  "degraded_channel": {
+    "tau_ui": 0.35,
+    "eye_height_v": 0.426924,
+    "eye_width_ps": 97.4281,
+    "total_jitter_ps": 27.5719,
+    "mask": "PcieGen3",
+    "mask_passed": false
+  },
+  "tolerance_rel": 0.02
+}

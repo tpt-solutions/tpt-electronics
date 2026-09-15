@@ -1,0 +1,9 @@
+G04 tpt-electronics 2-layer demo - bottom copper*
+%FSLAX36Y36*%
+%MOMM*%
+%ADD10C,0.250*%
+G01*
+D10*
+X5000000Y5000000D02*
+X5000000Y25000000D01*
+M02*

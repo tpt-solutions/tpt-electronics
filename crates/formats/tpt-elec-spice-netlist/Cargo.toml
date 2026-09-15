@@ -1,0 +1,21 @@
+[package]
+name = "tpt-elec-spice-netlist"
+description = "SPICE netlist parser producing tpt-elec-spice-core circuits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-spice-models = { workspace = true }
+tpt-elec-spice-core = { workspace = true }
+
+[lints]
+workspace = true

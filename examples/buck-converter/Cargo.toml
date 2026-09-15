@@ -1,0 +1,25 @@
+[package]
+name = "example-buck-converter"
+description = "tpt-electronics example: buck-converter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "buck-converter"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-power-core = { workspace = true }
+tpt-elec-power-magnetics = { workspace = true }
+tpt-elec-spice-netlist = { workspace = true }
+tpt-elec-spice-analysis = { workspace = true }
+
+[lints]
+workspace = true

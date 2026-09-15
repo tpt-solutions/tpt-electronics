@@ -1,0 +1,19 @@
+[package]
+name = "tpt-elec-convection"
+description = "Natural and forced convection heat transfer correlations"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "example-wifi-antenna"
+description = "tpt-electronics example: wifi-antenna"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "wifi-antenna"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-rf-core = { workspace = true }
+tpt-elec-rf-antenna = { workspace = true }
+
+[lints]
+workspace = true

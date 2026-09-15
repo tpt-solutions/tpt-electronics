@@ -1,0 +1,20 @@
+[package]
+name = "tpt-elec-si-crosstalk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Near-end and far-end crosstalk models for coupled lines"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-si-core = { workspace = true }
+
+[lints]
+workspace = true

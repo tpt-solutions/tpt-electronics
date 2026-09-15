@@ -1,0 +1,20 @@
+{
+  "case": "butterworth_filter",
+  "description": "5th-order Butterworth low-pass, 50 Ohm, 100 MHz cutoff. Shunt-first ladder, ABCD-simulated insertion loss.",
+  "model": "tpt-elec-rf-filters",
+  "order": 5,
+  "cutoff_hz": 1.0e8,
+  "impedance_ohm": 50.0,
+  "ladder": {
+    "shunt_C_F": [1.9673e-11, 6.3662e-11, 1.9673e-11],
+    "series_L_H": [1.2876e-07, 1.2876e-07]
+  },
+  "insertion_loss_db": {
+    "10.0_MHz": -0.0003,
+    "50.0_MHz": -0.0879,
+    "100.0_MHz": -3.0103,
+    "200.0_MHz": -29.9281,
+    "1000.0_MHz": -100.1793
+  },
+  "tolerance_db": 0.2
+}

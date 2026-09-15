@@ -1,0 +1,22 @@
+[package]
+name = "example-pcie-eye-diagram"
+description = "tpt-electronics example: pcie-eye-diagram"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "pcie-eye-diagram"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-si-eye = { workspace = true }
+
+[lints]
+workspace = true

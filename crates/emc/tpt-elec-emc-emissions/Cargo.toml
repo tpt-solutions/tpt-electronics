@@ -1,0 +1,20 @@
+[package]
+name = "tpt-elec-emc-emissions"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "tpt-electronics EMC crate"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-emc-core = { workspace = true }
+
+[lints]
+workspace = true

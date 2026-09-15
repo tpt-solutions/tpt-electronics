@@ -1,0 +1,11 @@
+{
+  "case": "buck_converter_transient",
+  "description": "Asynchronous buck, 12 V input, 50% duty at 100 kHz, PMOS high-side switch (Level 1), freewheel diode + 1 nF snubber, L = 10 uH, C = 100 uF, R_load = 6 Ohm. Output charges toward the ideal D*Vin = 6 V with LC startup dynamics (LC resonance ~5 kHz, load time constant 600 us).",
+  "model": "tpt-elec-spice-analysis",
+  "netlist": "test-data/spice/buck.net",
+  "node": "out",
+  "sample_times_us": [40.0, 42.5, 45.0, 47.5, 50.0],
+  "v_out_v": [3.9227, 4.2681, 4.6520, 5.0349, 5.3807],
+  "tolerance_v": 0.05,
+  "physical_check": "v_out is monotonic rising and stays below the ideal 6 V regulation point during startup"
+}

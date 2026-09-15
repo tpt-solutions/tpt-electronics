@@ -1,0 +1,44 @@
+{
+  "name": "tpt-electronics",
+  "displayName": "tpt-electronics",
+  "description": "Thermal and impedance simulation for PCB designers, powered by tpt-electronics (MIT OR Apache-2.0).",
+  "version": "0.0.1",
+  "license": "MIT OR Apache-2.0",
+  "publisher": "tpt-solutions",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:tpt-electronics.thermal",
+    "onCommand:tpt-electronics.impedance"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tpt-electronics.thermal",
+        "title": "tpt-electronics: Run thermal sweep"
+      },
+      {
+        "command": "tpt-electronics.impedance",
+        "title": "tpt-electronics: Quick microstrip impedance"
+      }
+    ],
+    "configuration": {
+      "title": "tpt-electronics",
+      "properties": {
+        "tpt-electronics.cliPath": {
+          "type": "string",
+          "default": "tpt-elec-cli",
+          "description": "Path to the tpt-elec-cli binary."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "node --check extension.js"
+  }
+}

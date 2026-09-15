@@ -1,0 +1,11 @@
+{
+  "case": "simple_resistor_board",
+  "description": "10-cell 1D copper column (1x1x10 mm), ends pinned at 100/0 degC; lumped case: 1 mm^3 copper cell, 1 W, h=1000 W/m2K, 25 degC ambient",
+  "model": "tpt-elec-thermal",
+  "values": {
+    "slab_max_temp_c": 100.0,
+    "slab_center_temp_c": 44.4444,
+    "lumped_convection_temp_c": 1025.0
+  },
+  "tolerance_c": 0.3
+}

@@ -1,0 +1,19 @@
+{
+  "case": "l_network_match",
+  "description": "WiFi 6E antenna match: 50 Ohm source to a 25 + j15 Ohm load at 6.0 GHz. Two L-network solutions, each with a load-resonating series capacitor (-j15 Ohm at 6 GHz).",
+  "model": "tpt-elec-rf-core",
+  "z_source_ohm": 50.0,
+  "z_load_ohm": [25.0, 15.0],
+  "frequency_hz": 6.0e9,
+  "solutions": [
+    {
+      "elements_from_source": ["shunt", "series", "series_pre"],
+      "shunt_inductor_nh": null,
+      "values_note": "solution 0: shunt C 5.305e-13 F, series L 6.631e-10 H, series C 1.768e-12 F"
+    },
+    {
+      "elements_note": "solution 1: shunt L 1.326e-09 H, series C 1.061e-12 F, series C 1.768e-12 F"
+    }
+  ],
+  "max_gamma_magnitude": 1e-6
+}

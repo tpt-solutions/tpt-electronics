@@ -1,0 +1,28 @@
+[package]
+name = "tpt-elec-cli"
+description = "Command-line front end for tpt-electronics (Gerber + power map → thermal CSV)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "tpt-elec-cli"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-geometry = { workspace = true }
+tpt-elec-gerber = { workspace = true }
+tpt-elec-kicad = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+
+[lints]
+workspace = true

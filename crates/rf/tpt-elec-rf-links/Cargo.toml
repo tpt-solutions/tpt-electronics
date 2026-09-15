@@ -1,0 +1,27 @@
+[package]
+name = "tpt-elec-rf-links"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "tpt-electronics RF crate"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-rf-core = { workspace = true }
+tpt-elec-rf-antenna = { workspace = true }
+tpt-elec-rf-filters = { workspace = true }
+tpt-elec-rf-mixer = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "example-bga-thermal-cycle"
+description = "tpt-electronics example: bga-thermal-cycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "bga-thermal-cycle"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+tpt-elec-transient = { workspace = true }
+
+tpt-elec-geometry = { workspace = true }
+
+[lints]
+workspace = true

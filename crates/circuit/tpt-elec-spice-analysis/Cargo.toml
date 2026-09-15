@@ -1,0 +1,27 @@
+[package]
+name = "tpt-elec-spice-analysis"
+description = "SPICE analyses: DC operating point, AC sweep, transient, noise"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-spice-models = { workspace = true }
+tpt-elec-spice-core = { workspace = true }
+tpt-elec-spice-noise = { workspace = true }
+
+[dev-dependencies]
+tpt-elec-spice-netlist = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

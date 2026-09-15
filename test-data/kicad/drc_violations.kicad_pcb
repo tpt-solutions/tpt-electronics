@@ -1,0 +1,12 @@
+(kicad_pcb (version 20221018)
+  (general (thickness 1.6))
+  (layers
+    (0 "F.Cu" signal)
+    (31 "B.Cu" signal)
+  )
+  (net 1 "GND")
+  (net 2 "VCC")
+  (segment (start 5 5) (end 30 5) (width 0.5) (layer "B.Cu") (net 1))
+  (segment (start 30.05 5.1) (end 40 6) (width 0.5) (layer "B.Cu") (net 2))
+  (via (at 15 10) (size 0.5) (drill 0.3) (layers "F.Cu" "B.Cu") (net 1))
+)

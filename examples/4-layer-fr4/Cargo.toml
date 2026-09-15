@@ -1,0 +1,26 @@
+[package]
+name = "example-4-layer-fr4"
+description = "tpt-electronics example: 4-layer-fr4"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "4-layer-fr4"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+
+tpt-elec-geometry = { workspace = true }
+tpt-elec-gerber = { workspace = true }
+
+[lints]
+workspace = true

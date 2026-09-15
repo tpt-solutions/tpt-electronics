@@ -1,0 +1,102 @@
+[workspace]
+resolver = "2"
+# tpt-electronics workspace: every crate is a workspace member.
+members = [
+    "crates/core/*",
+    "crates/formats/*",
+    "crates/thermal/*",
+    "crates/circuit/*",
+    "crates/signal-integrity/*",
+    "crates/rf/*",
+    "crates/power/*",
+    "crates/semiconductor/*",
+    "crates/emc/*",
+    "crates/battery/*",
+    "crates/manufacturing/*",
+    "crates/cli/*",
+    "benches",
+    "examples/*",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tpt-solutions/tpt-electronics"
+homepage = "https://github.com/tpt-solutions/tpt-electronics"
+documentation = "https://docs.rs/tpt-elec-core"
+authors = ["TPT Solutions <open@tpt.solutions>"]
+keywords = ["pcb", "thermal", "spice", "signal-integrity", "simulation"]
+categories = ["science", "simulation"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.dependencies]
+# Internal crates (strict MIT OR Apache-2.0 chain, path + version pinned)
+tpt-elec-core = { path = "crates/core/tpt-elec-core", version = "0.1.0" }
+tpt-elec-materials = { path = "crates/core/tpt-elec-materials", version = "0.1.0" }
+tpt-elec-geometry = { path = "crates/core/tpt-elec-geometry", version = "0.1.0" }
+tpt-elec-gerber = { path = "crates/formats/tpt-elec-gerber", version = "0.1.0" }
+tpt-elec-kicad = { path = "crates/formats/tpt-elec-kicad", version = "0.1.0" }
+tpt-elec-odbpp = { path = "crates/formats/tpt-elec-odbpp", version = "0.1.0" }
+tpt-elec-ipc2581 = { path = "crates/formats/tpt-elec-ipc2581", version = "0.1.0" }
+tpt-elec-touchstone = { path = "crates/formats/tpt-elec-touchstone", version = "0.1.0" }
+tpt-elec-spice-netlist = { path = "crates/formats/tpt-elec-spice-netlist", version = "0.1.0" }
+tpt-elec-thermal = { path = "crates/thermal/tpt-elec-thermal", version = "0.1.0" }
+tpt-elec-joule = { path = "crates/thermal/tpt-elec-joule", version = "0.1.0" }
+tpt-elec-transient = { path = "crates/thermal/tpt-elec-transient", version = "0.1.0" }
+tpt-elec-convection = { path = "crates/thermal/tpt-elec-convection", version = "0.1.0" }
+tpt-elec-spice-core = { path = "crates/circuit/tpt-elec-spice-core", version = "0.1.0" }
+tpt-elec-spice-models = { path = "crates/circuit/tpt-elec-spice-models", version = "0.1.0" }
+tpt-elec-spice-analysis = { path = "crates/circuit/tpt-elec-spice-analysis", version = "0.1.0" }
+tpt-elec-spice-noise = { path = "crates/circuit/tpt-elec-spice-noise", version = "0.1.0" }
+tpt-elec-si-core = { path = "crates/signal-integrity/tpt-elec-si-core", version = "0.1.0" }
+tpt-elec-si-impedance = { path = "crates/signal-integrity/tpt-elec-si-impedance", version = "0.1.0" }
+tpt-elec-si-crosstalk = { path = "crates/signal-integrity/tpt-elec-si-crosstalk", version = "0.1.0" }
+tpt-elec-si-eye = { path = "crates/signal-integrity/tpt-elec-si-eye", version = "0.1.0" }
+tpt-elec-pi-pdn = { path = "crates/signal-integrity/tpt-elec-pi-pdn", version = "0.1.0" }
+tpt-elec-pi-decoupling = { path = "crates/signal-integrity/tpt-elec-pi-decoupling", version = "0.1.0" }
+tpt-elec-rf-core = { path = "crates/rf/tpt-elec-rf-core", version = "0.1.0" }
+tpt-elec-rf-filters = { path = "crates/rf/tpt-elec-rf-filters", version = "0.1.0" }
+tpt-elec-rf-antenna = { path = "crates/rf/tpt-elec-rf-antenna", version = "0.1.0" }
+tpt-elec-rf-mixer = { path = "crates/rf/tpt-elec-rf-mixer", version = "0.1.0" }
+tpt-elec-rf-links = { path = "crates/rf/tpt-elec-rf-links", version = "0.1.0" }
+tpt-elec-power-core = { path = "crates/power/tpt-elec-power-core", version = "0.1.0" }
+tpt-elec-power-magnetics = { path = "crates/power/tpt-elec-power-magnetics", version = "0.1.0" }
+tpt-elec-power-switches = { path = "crates/power/tpt-elec-power-switches", version = "0.1.0" }
+tpt-elec-power-control = { path = "crates/power/tpt-elec-power-control", version = "0.1.0" }
+tpt-elec-power-battery = { path = "crates/power/tpt-elec-power-battery", version = "0.1.0" }
+tpt-elec-semi-core = { path = "crates/semiconductor/tpt-elec-semi-core", version = "0.1.0" }
+tpt-elec-semi-mosfet = { path = "crates/semiconductor/tpt-elec-semi-mosfet", version = "0.1.0" }
+tpt-elec-semi-diode = { path = "crates/semiconductor/tpt-elec-semi-diode", version = "0.1.0" }
+tpt-elec-semi-bjt = { path = "crates/semiconductor/tpt-elec-semi-bjt", version = "0.1.0" }
+tpt-elec-semi-process = { path = "crates/semiconductor/tpt-elec-semi-process", version = "0.1.0" }
+tpt-elec-emc-core = { path = "crates/emc/tpt-elec-emc-core", version = "0.1.0" }
+tpt-elec-emc-emissions = { path = "crates/emc/tpt-elec-emc-emissions", version = "0.1.0" }
+tpt-elec-emc-immunity = { path = "crates/emc/tpt-elec-emc-immunity", version = "0.1.0" }
+tpt-elec-emc-shielding = { path = "crates/emc/tpt-elec-emc-shielding", version = "0.1.0" }
+tpt-elec-emc-grounding = { path = "crates/emc/tpt-elec-emc-grounding", version = "0.1.0" }
+tpt-elec-battery-core = { path = "crates/battery/tpt-elec-battery-core", version = "0.1.0" }
+tpt-elec-battery-thermal = { path = "crates/battery/tpt-elec-battery-thermal", version = "0.1.0" }
+tpt-elec-battery-bms = { path = "crates/battery/tpt-elec-battery-bms", version = "0.1.0" }
+tpt-elec-battery-pack = { path = "crates/battery/tpt-elec-battery-pack", version = "0.1.0" }
+tpt-elec-mfg-dfm = { path = "crates/manufacturing/tpt-elec-mfg-dfm", version = "0.1.0" }
+tpt-elec-mfg-test = { path = "crates/manufacturing/tpt-elec-mfg-test", version = "0.1.0" }
+tpt-elec-mfg-yield = { path = "crates/manufacturing/tpt-elec-mfg-yield", version = "0.1.0" }
+
+# Third-party (all MIT OR Apache-2.0) — dev/wasm only where possible
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"
+criterion = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[profile.bench]
+debug = true

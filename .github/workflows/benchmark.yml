@@ -1,0 +1,26 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  criterion:
+    name: Criterion benches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run criterion benchmarks
+        run: cargo bench --workspace --bench thermal-steady-state --bench joule-heating --bench spice-transient --bench si-eye-diagram -- --save-baseline ci
+      - name: Compare against previous baseline (informational)
+        run: cargo bench --workspace -- --baseline ci 2>/dev/null || true
+      - name: Upload criterion reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-results
+          path: target/criterion

@@ -1,0 +1,26 @@
+[package]
+name = "example-simple-led-board"
+description = "tpt-electronics example: simple-led-board"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "simple-led-board"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+
+tpt-elec-geometry = { workspace = true }
+tpt-elec-gerber = { workspace = true }
+
+[lints]
+workspace = true

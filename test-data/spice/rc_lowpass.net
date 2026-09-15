@@ -1,0 +1,6 @@
+RC low-pass: R = 1 kOhm, C = 1 nF, fc = 159.15 kHz
+V1 in 0 DC 0 AC 1
+R1 in out 1k
+C1 out 0 1n
+.ac dec 10 1k 10meg
+.end

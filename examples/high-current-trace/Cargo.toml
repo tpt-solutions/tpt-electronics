@@ -1,0 +1,27 @@
+[package]
+name = "example-high-current-trace"
+description = "tpt-electronics example: high-current-trace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "high-current-trace"
+path = "src/main.rs"
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+tpt-elec-joule = { workspace = true }
+tpt-elec-mfg-dfm = { workspace = true }
+
+tpt-elec-geometry = { workspace = true }
+
+[lints]
+workspace = true
