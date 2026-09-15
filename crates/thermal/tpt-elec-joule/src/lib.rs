@@ -191,7 +191,8 @@ impl JouleHeatingSolver {
         // Physically robust terminal current: I = P_total / V_positive
         // (the field solution conserves power through the penalty terminals).
         let v_pos = vmax;
-        let p_total: f64 = self.joule_power(&v).iter().sum();
+        let temps_rt = vec![20.0; n]; // called before coupling starts
+        let p_total: f64 = self.joule_power(&v, &temps_rt).iter().sum();
         let i_calc = if v_pos.abs() > 1e-300 {
             p_total / v_pos
         } else {
@@ -201,7 +202,9 @@ impl JouleHeatingSolver {
     }
 
     /// Joule power per cell from a potential field [W].
-    fn joule_power(&self, v: &[f64]) -> Vec<f64> {
+    /// Joule power per cell from a potential field, using the conductivity
+    /// evaluated at the given temperature field (B4 fix).
+    fn joule_power(&self, v: &[f64], temps: &[f64]) -> Vec<f64> {
         let n = self.grid.len();
         let nx = self.grid.nx() as usize;
         let ny = self.grid.ny() as usize;
@@ -212,12 +215,11 @@ impl JouleHeatingSolver {
             self.grid.resolution.dz.as_meters(),
         );
         let mut power = vec![0.0f64; n];
-        let temps_zero = vec![20.0; n];
         for z in 0..nz {
             for y in 0..ny {
                 for x in 0..nx {
                     let i = x + nx * (y + ny * z);
-                    let s = self.sigma_at(i, temps_zero[i]);
+                    let s = self.sigma_at(i, temps[i]);
                     for (j, area, len) in [
                         (x + 1 < nx).then(|| i + 1).map(|j| (j, dy * dz, dx)),
                         (y + 1 < ny).then(|| i + nx).map(|j| (j, dx * dz, dy)),
@@ -262,7 +264,7 @@ impl JouleHeatingSolver {
             performed = it + 1;
 
             let (v, i_calc, _gmax) = self.solve_electrical(&temps, voltage_sources);
-            power = self.joule_power(&v);
+            power = self.joule_power(&v, &temps);
             current = i_calc;
 
             let mut thermal = ThermalSolver::new(self.grid.clone(), self.materials.clone());

@@ -155,7 +155,8 @@ impl LinkChain {
         let mut g_prod = 1.0f64;
         for (i, stage) in self.stages.iter().enumerate() {
             if i > 0 {
-                g_prod += 10f64.powf(gains[i - 1] / 10.0) * g_prod;
+                // product of all preceding stage power gains
+                g_prod *= 10f64.powf(gains[i - 1] / 10.0);
             }
             if let Some(iip3) = stage.iip3_dbm() {
                 iip3_inv += g_prod / 10f64.powf(iip3 / 10.0);
@@ -241,6 +242,14 @@ mod tests {
         assert!(high.iip3_dbm < low.iip3_dbm);
         // Both report a finite SFDR
         assert!(low.sfdr_db.is_finite() && high.sfdr_db.is_finite());
+
+        // Regression (B1): Friis IIP3 must use the *product* of preceding
+        // gains. typical_receiver: filter(-1) → LNA(20, oip3 30 → iip3 10)
+        // → mixer(iip3 22). g_prod at the LNA = 10^(-0.1) = 0.794; at the
+        // mixer = 0.794·100 = 79.4:
+        // 1/I = 0.794/10 + 79.4/158.5 = 0.580 → IIP3 = 2.37 dBm.
+        let r = LinkChain::typical_receiver(20.0, 1.0).evaluate();
+        assert!((r.iip3_dbm - 2.37).abs() < 0.05, "iip3 {}", r.iip3_dbm);
     }
 
     #[test]

@@ -10,12 +10,13 @@ documentation.workspace = true
 authors.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "tpt-electronics manufacturing crate"
+description = "DRC engine, IPC-2152/2221 trace sizing, electromigration"
 
 [dependencies]
 tpt-elec-core = { workspace = true }
 tpt-elec-geometry = { workspace = true }
 tpt-elec-kicad = { workspace = true }
+tpt-elec-spice-models = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true }

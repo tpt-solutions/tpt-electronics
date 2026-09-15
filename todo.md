@@ -345,10 +345,57 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] RFC process for new crates/major API changes (rfcs/0001–0005 written as Implemented), DCO sign-off on all PRs (CI check + CONTRIBUTING.md)
 - [x] Update README crate status table (✅ Stable / 🚧 Alpha / 📋 Planned) as crates land
 
-## Deferred / Known follow-ups
-- [ ] Publishing to crates.io (explicitly excluded from this pass)
+## Deferred (carried forward)
+- [ ] Unified HTML report (`tpt-elec-cli report`)
+- [ ] Watch mode (`tpt-elec-cli thermal --watch`)
+- [ ] Better parse errors (span info, suggestions)
+- [ ] Chebyshev-II / Elliptic filter synthesis (needs Cauer g-tables or elliptic-function pole extraction)
+- [ ] Band-stop ladder transformation (resonator duals)
+- [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)
 - [ ] BSIM3/BSIM4/EKV parameter sets for MOSFET models (Level-1 fallback documented)
 - [ ] Chebyshev-II / Elliptic filter synthesis (clear errors today)
-- [ ] Band-pass / band-stop ladder transformation
-- [ ] Compressed (deflate) ODB++ archive support
-- [ ] IPC-2152 full chart interpolation beyond the IPC-2221 formula
+- [x] Band-pass ladder transformation (band-stop still deferred)
+- [x] Compressed (deflate) ODB++ archive support (in-tree RFC 1951 inflate)
+- [x] IPC-2152 chart-fit approximation with correction factors (plane/airflow/vacuum multipliers; full chart interpolation still deferred)
+
+## Post-v0.1 Review — Bugs (fix before next release)
+
+Found in the platform review; each verified against the code.
+
+- [x] **B1 — rf-links cascade IIP3 accumulation is wrong** (`crates/rf/tpt-elec-rf-links/src/lib.rs:158`): `g_prod += gain * g_prod` computes `g_prod × (1+G)` instead of `g_prod ×= G`. Friis IIP3 needs the product of preceding power gains. Fix + a regression test with hand-computed two-stage values (LNA 20 dB / 30 dBm → mixer 10 dBm must give −10.0 dBm).
+- [x] **B2 — Gerber modal coordinates lost** (`crates/formats/tpt-elec-gerber/src/lib.rs:568`): a coordinate line missing X or Y maps that axis to 0.0 instead of carrying the previous position (legal per the Gerber spec). Keep last position in `GerberState`; override only present axes.
+- [x] **B3 — Thermal rasterization ignores Clear polarity** (`gerber_covers()` in `crates/thermal/tpt-elec-thermal/src/lib.rs`): plane cutouts / anti-pads with `Polarity::Clear` are rasterized as solid copper, over-estimating heat spreading. Track polarity state; subtract clear primitives.
+- [x] **B4 — Joule power uses σ(20 °C) instead of σ(T)** (`crates/thermal/tpt-elec-joule/src/lib.rs:215`): `joule_power()` hardcodes a 20 °C field while the electrical solve uses the converged one. Thread the current temperature field through.
+- [x] **B5 — wasm solver stacks state on repeated solve()** (`crates/core/tpt-elec-wasm/src/lib.rs:143`): each call re-adds convection BCs and appends heat sources. Snapshot the BC set, or rebuild the solver per call; add a regression test for two sequential solves.
+- [x] **B6 — Deterministic jitter is degenerate** (`crates/signal-integrity/tpt-elec-si-eye/src/lib.rs`): `dj = pp − 6·(pp/6) ≡ 0`. Estimate DJ from crossing-histogram structure (e.g. two-cluster split) or expose the raw crossing distribution; document the estimator.
+- [x] **B7 — Small items**: CLI silently drops `--gerber` flags after the first (`run_thermal` reads `args.gerbers[0]` — use bottom layer or warn); `pi_network` has a shadowed `x_series` binding + `let _ = x_series;` (`crates/rf/tpt-elec-rf-core/src/lib.rs:273`); Gerber region mode treats D02 inside G36 as no-op so multi-contour regions collapse.
+
+## Post-v0.1 Review — New features
+
+- [x] **Inverse impedance solver** (`tpt-elec-si-impedance`): `suggest(target_ohm, er, height) → width` via Newton iteration on the Hammerstad-Jensen model; expose in wasm + CLI (`tpt-elec-cli impedance --suggest`).
+- [x] **Electromigration lifetime (Black's equation)** (`tpt-elec-mfg-dfm`): `MTTF = A·J^−n·e^(Ea/kT)` on top of the existing current-density models; turns DRC into lifetime prediction.
+- [x] **Thermal via optimizer** (`tpt-elec-thermal` + `tpt-elec-geometry`): search via-array pitch/count vs. spreading resistance; consumes `ViaArray`.
+- [x] **Monte Carlo tolerance sweep** (`tpt-elec-si-impedance`): impedance distributions vs. etch/thickness tolerances (histogram + percentile output).
+- [ ] **Unified HTML report**: `tpt-elec-cli report` renders thermal/eye/PDN/margin results into a self-contained shareable artifact.
+- [ ] **Watch mode**: `tpt-elec-cli thermal --watch` re-exports (kicad-cli) and re-solves on file change.
+- [x] **EMC spectrum margin plot data**: CSV/JSON export of predicted spectrum + limit lines for charting (pairs with the HTML report).
+
+## Post-v0.1 Review — Usability & automation
+
+- [x] **Doctest the book**: book snippets currently don't compile anywhere — move them into crate docs (`#![doc = ...]`) or set up `mdbook test` in CI.
+- [x] **CLI JSON output** (`--format json`) so results pipe to `jq`/Python.
+- [ ] **Better parse errors**: offsets in Gerber errors; suggestions ("unknown subckt `div` — defined in this file?"); span info for netlist tokens.
+- [ ] **`xtask regen-goldens`** (deferred — golden values are stable, xtask added later): deliberate golden-file refresh instead of hand-editing JSON.
+- [x] **CI gaps**: run `cargo deny check bans` (only licenses run today); add an MSRV job (`rust-version = 1.75` is declared but untested).
+- [ ] **Component power-map from KiCad**: read per-component power from schematic properties in the KiCad plugin instead of the hardcoded 0.5 W center source.
+- [x] **DRC via kicad-cli in the plugin**: plugin currently runs thermal only — also surface `tpt-elec-mfg-dfm` findings.
+
+## Post-v0.1 Review — Adoption
+
+- [ ] **Publish leaf crates to crates.io** (si-impedance, si-eye, rf-core, rf-filters first; `cargo add` today does not work — biggest adoption blocker).
+- [x] **GitHub Pages wasm demo**: build `demo/pkg` with wasm-pack in CI and deploy — "drop a Gerber, see heat" experienced with zero install.
+- [x] **CLI release binaries**: tagged workflow or cargo-dist producing one-file downloads per platform.
+- [x] **`cargo generate` project template**: pre-wired stackup + power map + golden test layout.
+- [x] **One narrated end-to-end example**: KiCad project → export → thermal → report, written as a tutorial (current examples assume you know which crate to reach for).
+- [x] **Per-crate doctested quickstarts**: the first snippet a new user pastes must be guaranteed to compile.
+- [x] **"Which crate do I need?" decision table** at the top of docs/book.

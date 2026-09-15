@@ -1,6 +1,8 @@
 # Summary
 
 - [Introduction](introduction.md)
+- [Which crate do I need?](crate-map.md)
+- [Tutorial: KiCad board → thermal report](tutorial.md)
 - [Getting started](getting-started.md)
 - [Thermal analysis](thermal.md)
 - [Circuit simulation (SPICE)](spice.md)

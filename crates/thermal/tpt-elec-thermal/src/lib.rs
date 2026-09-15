@@ -21,6 +21,30 @@
 //!
 //! Temperatures are in degrees Celsius throughout.
 
+//! # Quick start
+//!
+//! ```
+//! use tpt_elec_core::{BoundingBox3, Length, MaterialId, Point3};
+//! use tpt_elec_geometry::{VoxelGrid, VoxelResolution};
+//! use tpt_elec_materials::MaterialDatabase;
+//! use tpt_elec_thermal::{BoundaryCondition, ThermalSolver};
+//!
+//! let grid = VoxelGrid::new(
+//!     BoundingBox3::new(Point3::new(0.0, 0.0, 0.0), Point3::new(0.01, 0.01, 0.0016)),
+//!     VoxelResolution { dx: Length::mm(1.0), dy: Length::mm(1.0), dz: Length::mm(0.4) },
+//!     MaterialId::new("fr4"),
+//! );
+//! let mut solver = ThermalSolver::new(grid, MaterialDatabase::standard());
+//! solver.add_boundary_condition(BoundaryCondition::HeatSource { nodes: vec![0], power: 1.0 });
+//! solver.add_boundary_condition(BoundaryCondition::Convection {
+//!     surface: (0..solver.grid().nz()).map(|i| i as u32).collect(),
+//!     h: 10.0,
+//!     t_ambient: 25.0,
+//! });
+//! let result = solver.solve_steady_state();
+//! assert!(result.max_temp >= 25.0);
+//! ```
+
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
@@ -93,6 +117,7 @@ pub struct ThermalResult {
 }
 
 /// The steady-state thermal solver.
+#[derive(Clone)]
 pub struct ThermalSolver {
     grid: VoxelGrid,
     materials: MaterialDatabase,
@@ -547,28 +572,39 @@ impl ThermalSolver {
 /// Whether a parsed Gerber image has copper covering point (x, y).
 fn gerber_covers(g: &ParsedGerber, x: f64, y: f64) -> bool {
     let p = Point2::new(x, y);
+    let mut dark_hit = false;
     for prim in &g.primitives {
-        let hit = match prim {
-            Primitive::Line { start, end, width } => {
-                point_segment_distance(p, *start, *end) <= width.as_meters() / 2.0
-            }
+        let (hit, dark) = match prim {
+            Primitive::Line { start, end, width } => (
+                point_segment_distance(p, *start, *end) <= width.as_meters() / 2.0,
+                true,
+            ),
             Primitive::Arc {
                 start, end, center, ..
-            } => {
+            } => (
                 // Conservative: treat as straight chord.
-                point_segment_distance(p, *start, *end) <= 2.0 * center.distance_to(start)
-            }
+                point_segment_distance(p, *start, *end) <= 2.0 * center.distance_to(start),
+                true,
+            ),
             Primitive::Flash { position, aperture } => {
                 let r = aperture.approx_half_extent();
-                position.distance_to(&p) <= r
+                (position.distance_to(&p) <= r, true)
             }
-            Primitive::Region { boundary, .. } => point_in_polygon(p, boundary),
+            Primitive::Region { boundary, polarity } => (
+                point_in_polygon(p, boundary),
+                *polarity == tpt_elec_gerber::Polarity::Dark,
+            ),
         };
         if hit {
-            return true;
+            if dark {
+                dark_hit = true;
+            } else {
+                // A clear region (cutout / anti-pad) removes copper.
+                return false;
+            }
         }
     }
-    false
+    dark_hit
 }
 
 fn point_segment_distance(p: Point2, a: Point2, b: Point2) -> f64 {
@@ -858,5 +894,143 @@ mod tests {
             r.max_temp,
             golden.values["lumped_convection_temp_c"]
         );
+    }
+}
+
+/// Thermal via array optimizer.
+///
+/// Models the vertical heat path from a source (e.g. a thermal pad) through
+/// an N-via array into a plane, using two resistances in series:
+///
+/// * `R_cond` — conduction through the plated barrels:
+///   `t_board/(k_cu·N·A_barrel)`
+/// * `R_spread` — radial spreading into the plane from the array footprint:
+///   `ln(r_out/r_array)/(2π·k_plane·t_plane)` (axisymmetric approximation)
+///
+/// The optimizer sweeps counts and pitches (constrained by a minimum pitch
+/// for fabrication) and returns the lowest-resistance feasible array.
+pub struct ViaArrayOptimizer {
+    /// Board thickness [m] (via length).
+    pub board_thickness_m: f64,
+    /// Copper conductivity [W/(m·K)].
+    pub k_cu: f64,
+    /// Plane copper thickness [m].
+    pub plane_thickness_m: f64,
+    /// Plane conductivity [W/(m·K)] (0.7× copper for 1 oz on FR4 laminates).
+    pub k_plane: f64,
+    /// Plated barrel wall thickness [m].
+    pub plating_m: f64,
+    /// Drill diameter [m].
+    pub drill_m: f64,
+    /// Minimum fab pitch (center-to-center) [m].
+    pub min_pitch_m: f64,
+    /// Half-width of the keep-in square around the source [m].
+    pub keep_in_m: f64,
+    /// Outer radius for the spreading model [m] (plane extent / 2).
+    pub r_out_m: f64,
+}
+
+/// The best array found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ViaArraySolution {
+    /// Number of vias.
+    pub count: u32,
+    /// Pitch used [m].
+    pub pitch_m: f64,
+    /// Total thermal resistance source→plane [K/W].
+    pub total_r_k_per_w: f64,
+}
+
+impl ViaArrayOptimizer {
+    /// Total resistance for an N-via square array at pitch `pitch`.
+    pub fn total_resistance(&self, count: u32, pitch_m: f64) -> f64 {
+        let drill_r = self.drill_m / 2.0;
+        let outer_r = drill_r + self.plating_m;
+        let barrel_area = std::f64::consts::PI * (outer_r * outer_r - drill_r * drill_r);
+        let n = count.max(1) as f64;
+        let r_cond = self.board_thickness_m / (self.k_cu * n * barrel_area);
+        // Array footprint radius (square array of side sqrt(N)·pitch)
+        let r_array = (n.sqrt() * pitch_m) / 2.0;
+        let r_in = r_array.max(drill_r);
+        let r_spread = (self.r_out_m.max(r_in * 2.0) / r_in).ln()
+            / (std::f64::consts::TAU * self.k_plane * self.plane_thickness_m.max(1e-9));
+        r_cond + r_spread
+    }
+
+    /// Max vias of `count` that fit in the keep-in square at `pitch`.
+    fn fits(&self, count: u32, pitch_m: f64) -> bool {
+        if pitch_m < self.min_pitch_m {
+            return false;
+        }
+        let side = (count as f64).sqrt().ceil() * pitch_m;
+        side / 2.0 <= self.keep_in_m
+    }
+
+    /// Sweeps counts 1..=max_count and pitches (min..keep-in) for the best.
+    pub fn optimize(&self, max_count: u32) -> ViaArraySolution {
+        let mut best: Option<ViaArraySolution> = None;
+        for count in 1..=max_count {
+            let mut pitch = self.min_pitch_m;
+            while self.fits(count, pitch) {
+                let r = self.total_resistance(count, pitch);
+                if best.map(|b| r < b.total_r_k_per_w).unwrap_or(true) {
+                    best = Some(ViaArraySolution {
+                        count,
+                        pitch_m: pitch,
+                        total_r_k_per_w: r,
+                    });
+                }
+                pitch += self.min_pitch_m;
+            }
+        }
+        best.unwrap_or(ViaArraySolution {
+            count: 1,
+            pitch_m: self.min_pitch_m,
+            total_r_k_per_w: self.total_resistance(1, self.min_pitch_m),
+        })
+    }
+}
+
+#[cfg(test)]
+mod via_optimizer_tests {
+    use super::*;
+
+    fn optimizer() -> ViaArrayOptimizer {
+        ViaArrayOptimizer {
+            board_thickness_m: 1.6e-3,
+            k_cu: 385.0,
+            plane_thickness_m: 35e-6,
+            k_plane: 385.0,
+            plating_m: 25e-6,
+            drill_m: 300e-6,
+            min_pitch_m: 600e-6,
+            keep_in_m: 3e-3,
+            r_out_m: 25e-3,
+        }
+    }
+
+    #[test]
+    fn more_vias_lower_resistance() {
+        let opt = optimizer();
+        let one = opt.total_resistance(1, 600e-6);
+        let nine = opt.total_resistance(9, 600e-6);
+        assert!(nine < one, "9 {nine} vs 1 {one}");
+    }
+
+    #[test]
+    fn optimizer_finds_feasible_array() {
+        let best = optimizer().optimize(36);
+        assert!(best.count >= 4);
+        assert!(best.total_r_k_per_w > 0.0 && best.total_r_k_per_w.is_finite());
+        // barrel conduction: R ≈ t/(k·N·A) — sanity: single-via R > multi-via R/2
+        let o = optimizer();
+        assert!(best.total_r_k_per_w < o.total_resistance(1, 600e-6));
+    }
+
+    #[test]
+    fn min_pitch_respected() {
+        let o = optimizer();
+        let best = o.optimize(25);
+        assert!(best.pitch_m >= o.min_pitch_m - 1e-15);
     }
 }

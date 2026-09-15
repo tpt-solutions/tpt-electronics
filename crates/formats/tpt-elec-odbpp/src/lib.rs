@@ -17,6 +17,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod inflate;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
@@ -147,6 +149,7 @@ impl OdbppParser {
         // Feature files
         for (name, data) in &members {
             let Some(layer_name) = name.strip_prefix("steps/") else {
+                eprintln!("DBG skip non-steps: {name}");
                 continue;
             };
             // steps/<step>/layers/<layer>/features
@@ -157,7 +160,16 @@ impl OdbppParser {
                     continue;
                 };
                 let text = String::from_utf8_lossy(data);
+                eprintln!(
+                    "DBG parse_features layer={} text_len={}",
+                    layer_name,
+                    text.len()
+                );
                 parse_features(&text, &mut design.layers[idx])?;
+                eprintln!(
+                    "DBG parse_features done: {} lines",
+                    design.layers[idx].lines.len()
+                );
             }
         }
         Ok(design)
@@ -171,6 +183,8 @@ fn read_stored_zip(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, OdbppError> {
     };
     let mut out = Vec::new();
     let mut pos = 0usize;
+    #[cfg(test)]
+    let mut dbg_entries: Vec<(usize, String, usize)> = Vec::new();
     while let Some(hdr) = find_sig(&[0x50, 0x4b, 0x03, 0x04], pos) {
         if hdr + 30 > bytes.len() {
             break;
@@ -178,27 +192,40 @@ fn read_stored_zip(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, OdbppError> {
         let method = u16::from_le_bytes([bytes[hdr + 8], bytes[hdr + 9]]);
         let name_len = u16::from_le_bytes([bytes[hdr + 26], bytes[hdr + 27]]) as usize;
         let extra_len = u16::from_le_bytes([bytes[hdr + 28], bytes[hdr + 29]]) as usize;
+        // offset 18 = compressed size (what's actually in the file)
         let data_len = u32::from_le_bytes([
-            bytes[hdr + 22],
-            bytes[hdr + 23],
-            bytes[hdr + 24],
-            bytes[hdr + 25],
+            bytes[hdr + 18],
+            bytes[hdr + 19],
+            bytes[hdr + 20],
+            bytes[hdr + 21],
         ]) as usize;
         let name_start = hdr + 30;
         let name = String::from_utf8_lossy(&bytes[name_start..name_start + name_len]).to_string();
         let data_start = name_start + name_len + extra_len;
-        if method == 0 {
-            if data_start + data_len > bytes.len() {
-                return err(format!("truncated member {name}"));
+        #[cfg(test)]
+        dbg_entries.push((hdr, name.clone(), data_len));
+        if data_start + data_len > bytes.len() {
+            return err(format!("truncated member {name}"));
+        }
+        match method {
+            0 => out.push((name, bytes[data_start..data_start + data_len].to_vec())),
+            8 => {
+                let inflated = inflate::inflate(&bytes[data_start..data_start + data_len])
+                    .map_err(|e| OdbppError {
+                        message: format!("member {name}: {e:?}"),
+                    })?;
+                out.push((name, inflated));
             }
-            out.push((name, bytes[data_start..data_start + data_len].to_vec()));
-        } else {
-            return err(format!(
-                "member {name} is compressed (method {method}); this reader supports stored (method 0) archives only — re-pack with `zip -0`"
-            ));
+            other => {
+                return err(format!(
+                    "member {name} uses unsupported compression method {other} (supported: 0 stored, 8 deflate)"
+                ));
+            }
         }
         pos = data_start + data_len.max(1);
     }
+    #[cfg(test)]
+    eprintln!("DBG zip entries: {dbg_entries:?}");
     if out.is_empty() {
         return err("no ZIP local headers found (not a stored ZIP archive)");
     }
@@ -368,6 +395,18 @@ mod tests {
         assert!((traces[0].width.as_meters() - 25e-6).abs() < 1e-9);
         // Fixture lines span 10000 units at 0.1 µm/unit = 1 mm each
         assert!((design.total_line_length() - 2.8e-3).abs() < 1e-6); // 1+1+0.8 mm
+    }
+
+    #[test]
+    fn parses_compressed_archive() {
+        // Regression: DEFLATE (method 8) members decode via the in-tree
+        // inflate. Fixture generated with Python ZIP_DEFLATED.
+        let design = OdbppParser::parse_bytes(include_bytes!(
+            "../../../../test-data/odbpp/sample_compressed.zip"
+        ))
+        .unwrap();
+        assert!(design.layer_index.contains_key("top"));
+        assert_eq!(design.layers[design.layer_index["top"]].lines.len(), 2);
     }
 
     #[test]

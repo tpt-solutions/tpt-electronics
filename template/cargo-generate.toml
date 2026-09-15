@@ -1,0 +1,3 @@
+[template]
+description = "PCB analysis project using tpt-electronics"
+include = ["Cargo.toml", "src/main.rs", "README.md", ".gitignore"]

@@ -8,6 +8,20 @@
 //! resistance method with loaded-Q control). Designs are validated by
 //! ABCD-chain simulation (`simulate_gamma`), so a returned network is
 //! guaranteed to match at the design frequency within numerical error.
+//! # Quick start
+//!
+//! ```
+//! use tpt_elec_core::Complex;
+//! use tpt_elec_rf_core::{MatchingDesigner, SmithChart};
+//!
+//! // Match a 25 + j15 Ω antenna to 50 Ω at 2.4 GHz
+//! let z_ant = Complex::new(25.0, 15.0);
+//! let nets = MatchingDesigner::l_network(Complex::real(50.0), z_ant, 2.4e9, 50.0);
+//! assert!(!nets.is_empty());
+//! for net in &nets {
+//!     assert!(net.matches(z_ant, 1e-3));
+//! }
+//! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

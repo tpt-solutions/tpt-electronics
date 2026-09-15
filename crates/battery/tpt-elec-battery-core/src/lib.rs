@@ -6,6 +6,18 @@
 //! open-circuit voltage (SOC/temperature dependent), series resistance R0,
 //! and an arbitrary number of RC pairs. [`step`] advances the RC state for
 //! a constant current over a time step (exact for the linear network).
+//! # Quick start
+//!
+//! ```
+//! use tpt_elec_battery_core::{BatteryCell, EquivalentCircuitModel};
+//!
+//! let cell = BatteryCell::typical_nmc(2.0);
+//! let ecm = EquivalentCircuitModel::one_rc(0.03, 0.02, 2000.0);
+//!
+//! // Terminal voltage at 50 % SOC, 1 A discharge
+//! let v = ecm.terminal_voltage(0.5, 1.0, &[0.0]);
+//! assert!(v > 3.0 && v < 4.2);
+//! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

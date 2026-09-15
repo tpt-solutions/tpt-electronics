@@ -46,6 +46,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  deny-bans:
+    name: cargo-deny (bans + sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check bans sources
+
+  msrv:
+    name: MSRV (1.75)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace
+
   dco:
     name: DCO sign-off
     runs-on: ubuntu-latest

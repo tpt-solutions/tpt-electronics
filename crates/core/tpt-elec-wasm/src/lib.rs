@@ -75,6 +75,9 @@ impl Default for StackupConfig {
 #[wasm_bindgen]
 pub struct WasmThermalSolver {
     solver: ThermalSolver,
+    /// Pristine copy; each `solve` starts from it so repeated interactive
+    /// calls don't stack boundary conditions or power-map sources (B5).
+    pristine: ThermalSolver,
     grid_meta: (u32, u32, u32),
     config: StackupConfig,
 }
@@ -104,6 +107,7 @@ impl WasmThermalSolver {
         let solver = build_solver(&gerber, &config);
         let grid_meta = (solver.grid().nx(), solver.grid().ny(), solver.grid().nz());
         Ok(Self {
+            pristine: solver.clone(),
             solver,
             grid_meta,
             config,
@@ -127,6 +131,8 @@ impl WasmThermalSolver {
     }
 
     fn solve_inner(&mut self, power_map: &[f64]) -> Result<f64, String> {
+        // Reset to the pristine model so repeated calls are idempotent.
+        self.solver = self.pristine.clone();
         if !power_map.is_empty() {
             self.apply_power_map(power_map);
         }
@@ -248,6 +254,15 @@ M02*
         assert!(max_temp > 25.1, "max {max_temp}");
         let map = solver.get_temperature_map();
         assert!(!map.is_empty());
+    }
+
+    #[test]
+    fn repeated_solves_are_idempotent() {
+        // Regression (B5): a second solve must not stack BCs / sources.
+        let mut solver = WasmThermalSolver::new_inner(GERBER.as_bytes(), "").unwrap();
+        let first = solver.solve_inner(&[10.0, 10.0, 0.3]).unwrap();
+        let second = solver.solve_inner(&[10.0, 10.0, 0.3]).unwrap();
+        assert!((first - second).abs() < 1e-9, "{first} vs {second}");
     }
 
     #[test]

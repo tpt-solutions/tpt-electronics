@@ -78,6 +78,14 @@ pub struct MosfetParameters {
     pub cox: f64,
     /// Bulk junction saturation current [A].
     pub is_bulk: f64,
+    /// Mobility degradation coefficient θ [1/V] (BSIM3/4 subset).
+    pub theta: f64,
+    /// Critical field for velocity saturation [V/m] (BSIM3/4 subset).
+    pub e_sat: f64,
+    /// Slope factor n (EKV subset).
+    pub n_ekv: f64,
+    /// Specific current I_S [A] (EKV subset).
+    pub is_ekv: f64,
 }
 
 impl Default for MosfetParameters {
@@ -92,6 +100,10 @@ impl Default for MosfetParameters {
             l: Length::um(1.0),
             cox: 1.0e-3, // ~ tox 3.45 nm
             is_bulk: 1.0e-14,
+            theta: 0.05,
+            e_sat: 4.0e6, // ~ 2 V across a 0.5 µm channel
+            n_ekv: 1.3,
+            is_ekv: 1.0e-6,
         }
     }
 }
@@ -162,8 +174,9 @@ impl MosfetModel {
         let beta = p.kp * (p.w.as_meters() / p.l.as_meters());
         let lambda = p.lambda.max(0.0);
 
-        if vov <= 0.0 {
-            // Cutoff (ignoring subthreshold for levels 1–3)
+        if vov <= 0.0 && self.level != MosfetLevel::Ekv {
+            // Cutoff (ignoring subthreshold for levels 1–3). EKV uses the
+            // ln² charge-sheet law, which is continuous through threshold.
             return MosfetOperatingPoint {
                 ids: 0.0,
                 gm: 0.0,
@@ -175,42 +188,95 @@ impl MosfetModel {
         }
 
         let (ids, gm, gds, saturated);
-        let level = match self.level {
-            MosfetLevel::Level3 => MosfetLevel::Level3,
-            // BSIM/EKV slots reuse Level 1 math until their parameter sets
-            // are implemented (documented scaffold behavior).
-            _ => MosfetLevel::Level1,
-        };
-        match level {
-            MosfetLevel::Level3 => {
-                // Semi-empirical: linear-region mobility reduction factor.
-                let f = 1.0 / (1.0 + 0.5 * vov.max(0.0));
-                if vds_i < vov {
-                    let b = beta * f;
-                    ids = b * (vov * vds_i - 0.5 * vds_i * vds_i);
-                    gm = b * vds_i;
-                    gds = b * vov;
+        match self.level {
+            MosfetLevel::Bsim3 | MosfetLevel::Bsim4 => {
+                // Short-channel subset shared by both levels: vertical-field
+                // mobility degradation + velocity saturation + CLM.
+                let theta = p.theta.max(0.0);
+                let mu_factor = 1.0 / (1.0 + theta * vov);
+                let beta_eff = beta * mu_factor;
+                // Velocity saturation: quadratic current limited to
+                // I_sat_lin = β_eff·vov·vds/(1 + vds/(Ec·L)) in triode and a
+                // soft saturation knee at vds_sat = vov·EcL/(vov+EcL).
+                let ec_l = (p.e_sat * p.l.as_meters()).max(1e-3);
+                let vds_sat = vov * ec_l / (vov + ec_l);
+                if vds_i < vds_sat {
+                    let denom = 1.0 + vds_i / ec_l;
+                    ids = beta_eff * (vov - 0.5 * vds_i) * vds_i / denom;
+                    gm = beta_eff * vds_i * (1.0 + theta * vov / (1.0 + theta * vov)) / denom;
+                    gds = beta_eff * (vov - vds_i) / denom;
                     saturated = false;
                 } else {
-                    ids = 0.5 * beta * f * vov * vov * (1.0 + lambda * vds_i);
-                    gm = beta * f * vov * (1.0 + lambda * vds_i);
-                    gds = 0.5 * beta * f * vov * vov * lambda;
+                    // Id_sat = β_eff/2 · vov² / (1 + vov/(Ec·L)):
+                    // quadratic → linear in vov as velocity saturation bites.
+                    let denom = 1.0 + vov / ec_l;
+                    let lin = beta_eff * 0.5 * vov * vov / denom;
+                    ids = lin * (1.0 + lambda * vds_i);
+                    gm = (beta_eff * vov * (1.0 + vov / ec_l / 2.0) / (denom * denom))
+                        * (1.0 + lambda * vds_i);
+                    gds = 0.5 * beta_eff * vov * vov / denom * lambda;
                     saturated = true;
                 }
             }
-            _ => {
-                if vds_i < vov {
-                    // Linear (triode) region
-                    ids = beta * (vov * vds_i - 0.5 * vds_i * vds_i);
-                    gm = beta * vds_i;
-                    gds = beta * vov;
-                    saturated = false;
-                } else {
-                    // Saturation with channel-length modulation
-                    ids = 0.5 * beta * vov * vov * (1.0 + lambda * vds_i);
-                    gm = beta * vov * (1.0 + lambda * vds_i);
-                    gds = 0.5 * beta * vov * vov * lambda;
-                    saturated = true;
+            MosfetLevel::Ekv => {
+                // EKV charge-sheet static law: smooth single expression across
+                // weak/moderate/strong inversion:
+                // Id = Is·(ln²(1+e^v_f) − ln²(1+e^v_r)), v = (Vov)/2nVt.
+                let vt = 0.02585;
+                let vf = (vov / (2.0 * p.n_ekv * vt)).clamp(-60.0, 60.0);
+                let vsat = (vds_i - vov) / (2.0 * p.n_ekv * vt);
+                let ln_f = (1.0 + vf.exp()).ln();
+                let ln_r = (1.0 + ((-vsat).clamp(-60.0, 60.0)).exp()).ln();
+                ids = p.is_ekv * (ln_f * ln_f - ln_r * ln_r);
+                // Small-signal: numeric derivatives (smooth function).
+                let dv = 1e-6;
+                let vf2 = ((vov + dv) / (2.0 * p.n_ekv * vt)).clamp(-60.0, 60.0);
+                let ln_f2 = (1.0 + vf2.exp()).ln();
+                gm = p.is_ekv * (ln_f2 * ln_f2 - ln_f * ln_f) / dv;
+                let vds2 = vds_i + dv;
+                let vsat3 = (vds2 - vov) / (2.0 * p.n_ekv * vt);
+                let ln_r3 = (1.0 + ((-vsat3).clamp(-60.0, 60.0)).exp()).ln();
+                let ids2 = p.is_ekv * (ln_f * ln_f - ln_r3 * ln_r3);
+                gds = (ids2 - ids) / dv;
+                saturated = vds_i >= vov;
+            }
+            level => {
+                let level = match level {
+                    MosfetLevel::Level3 => MosfetLevel::Level3,
+                    _ => MosfetLevel::Level1,
+                };
+                match level {
+                    MosfetLevel::Level3 => {
+                        // Semi-empirical: linear-region mobility reduction factor.
+                        let f = 1.0 / (1.0 + 0.5 * vov);
+                        if vds_i < vov {
+                            let b = beta * f;
+                            ids = b * (vov * vds_i - 0.5 * vds_i * vds_i);
+                            gm = b * vds_i;
+                            gds = b * vov;
+                            saturated = false;
+                        } else {
+                            ids = 0.5 * beta * f * vov * vov * (1.0 + lambda * vds_i);
+                            gm = beta * f * vov * (1.0 + lambda * vds_i);
+                            gds = 0.5 * beta * f * vov * vov * lambda;
+                            saturated = true;
+                        }
+                    }
+                    _ => {
+                        if vds_i < vov {
+                            // Linear (triode) region
+                            ids = beta * (vov * vds_i - 0.5 * vds_i * vds_i);
+                            gm = beta * vds_i;
+                            gds = beta * vov;
+                            saturated = false;
+                        } else {
+                            // Saturation with channel-length modulation
+                            ids = 0.5 * beta * vov * vov * (1.0 + lambda * vds_i);
+                            gm = beta * vov * (1.0 + lambda * vds_i);
+                            gds = 0.5 * beta * vov * vov * lambda;
+                            saturated = true;
+                        }
+                    }
                 }
             }
         }
@@ -577,6 +643,86 @@ mod tests {
         pnp.polarity = BjtPolarity::Pnp;
         let op_p = pnp.operating_point(-0.7, 1.0, t);
         assert!(op_p.ic < 0.0);
+    }
+
+    #[test]
+    fn bsim_subset_mobility_reduces_current() {
+        let base = MosfetParameters {
+            vth0: 0.7,
+            kp: 110e-6,
+            theta: 0.0,
+            ..Default::default()
+        };
+        let no_theta = MosfetModel {
+            level: MosfetLevel::Bsim3,
+            polarity: MosfetPolarity::N,
+            parameters: base.clone(),
+        };
+        let with_theta = MosfetModel {
+            level: MosfetLevel::Bsim3,
+            polarity: MosfetPolarity::N,
+            parameters: MosfetParameters {
+                theta: 0.2,
+                ..base.clone()
+            },
+        };
+        let i_clean = no_theta.drain_current(3.0, 3.0, 0.0);
+        let i_degraded = with_theta.drain_current(3.0, 3.0, 0.0);
+        // θ = 0.2 at vov = 2.3 V: μ factor = 1/(1+0.46) ≈ 0.685
+        assert!(i_degraded < i_clean * 0.75, "{i_degraded} vs {i_clean}");
+        assert!(i_degraded > 0.0);
+    }
+
+    #[test]
+    fn bsim_subset_velocity_saturation_caps_current() {
+        let m = MosfetModel {
+            level: MosfetLevel::Bsim4,
+            polarity: MosfetPolarity::N,
+            parameters: MosfetParameters {
+                vth0: 0.7,
+                kp: 110e-6,
+                lambda: 0.0,
+                e_sat: 2.0e6,
+                ..Default::default()
+            },
+        };
+        // Long-channel square law would predict 4× current for 2× vov;
+        // velocity saturation caps growth well below that.
+        let i1 = m.drain_current(1.7, 3.0, 0.0);
+        let i2 = m.drain_current(2.7, 3.0, 0.0);
+        assert!(i2 > i1);
+        assert!(i2 / i1 < 3.0, "ratio {}", i2 / i1);
+        // Smooth knee: id continuous across vds_sat (finite gds)
+        let op = m.operating_point(2.0, 3.0, 0.0);
+        assert!(op.gds >= 0.0);
+    }
+
+    #[test]
+    fn ekv_gm_over_id_law_in_weak_inversion() {
+        let n = 1.4;
+        let m = MosfetModel {
+            level: MosfetLevel::Ekv,
+            polarity: MosfetPolarity::N,
+            parameters: MosfetParameters {
+                vth0: 0.7,
+                is_ekv: 1e-6,
+                n_ekv: n,
+                ..Default::default()
+            },
+        };
+        // Weak inversion: vgs well below vth → gm/Id → 1/(n·Vt)
+        let vt = 0.02585;
+        let vgs = 0.4;
+        let op = m.operating_point(vgs, 1.0, 0.0);
+        let gm_over_id = op.gm / op.ids;
+        assert!(
+            (gm_over_id - 1.0 / (n * vt)).abs() / (1.0 / (n * vt)) < 0.02,
+            "gm/id = {}",
+            gm_over_id
+        );
+        // Strong inversion: current positive, continuous, saturated
+        let strong = m.operating_point(2.0, 2.0, 0.0);
+        assert!(strong.ids > 0.0 && strong.saturated);
     }
 
     #[test]

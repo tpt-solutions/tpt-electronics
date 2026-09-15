@@ -117,6 +117,22 @@ pub struct MaskResult {
     pub margin_amplitude: f64,
 }
 
+/// Largest gap between consecutive sorted samples (internal gaps only).
+fn largest_internal_gap(sorted: &[f64]) -> Option<f64> {
+    if sorted.len() < 3 {
+        return None;
+    }
+    sorted
+        .windows(2)
+        .map(|w| w[1] - w[0])
+        .fold(None, |acc: Option<f64>, g| {
+            Some(match acc {
+                Some(best) => best.max(g),
+                None => g,
+            })
+        })
+}
+
 /// An analyzed eye diagram.
 #[derive(Clone, Debug)]
 pub struct EyeDiagram {
@@ -186,10 +202,13 @@ impl EyeDiagram {
             .zip(offsets.first())
             .map(|(hi, lo)| hi - lo)
             .unwrap_or(0.0);
-        // Deterministic (data-dependent) ≈ peak-to-peak of crossings minus a
-        // Gaussian allowance; random ≈ σ estimate = pp/6 (3σ tails).
-        let rj = pp / 6.0;
-        let dj = (pp - 6.0 * rj).max(0.0);
+        // First-order separation (B6): a bimodal crossing histogram (two
+        // edge populations from even/odd transitions) splits at the largest
+        // internal gap — that gap is the deterministic (data-dependent)
+        // jitter. Unimodal crossings → DJ ≈ 0, RJ absorbs the spread.
+        let dj = largest_internal_gap(&offsets).unwrap_or(0.0);
+        let dj = if dj > 0.15 * pp { dj } else { 0.0 };
+        let rj = ((pp - dj) / 6.0).max(0.0);
         let jitter = JitterMetrics {
             total_jitter: pp,
             random_jitter: rj,

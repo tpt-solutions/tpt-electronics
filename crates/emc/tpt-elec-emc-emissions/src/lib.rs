@@ -48,6 +48,25 @@ impl EmissionsSpectrum {
             .map(|(&f, &a)| limit.margin_at(f, a))
             .fold(f64::INFINITY, f64::min)
     }
+
+    /// CSV export: `frequency_hz,amplitude_dbuv,limit_dbuv,margin_db`.
+    pub fn to_csv_with_limit(&self, limit: &EmcLimit) -> String {
+        let mut out = String::from(
+            "frequency_hz,amplitude_dbuv,limit_dbuv,margin_db
+",
+        );
+        for (&f, &a) in self.frequencies.iter().zip(&self.amplitudes_dbuv) {
+            out.push_str(&format!(
+                "{:.0},{:.2},{:.2},{:.2}
+",
+                f,
+                a,
+                limit.limit_at(f),
+                limit.margin_at(f, a)
+            ));
+        }
+        out
+    }
 }
 
 /// Emissions prediction.
@@ -222,6 +241,21 @@ mod tests {
             large.amplitudes_dbuv[0],
             small.amplitudes_dbuv[0]
         );
+    }
+
+    #[test]
+    fn csv_export_contains_all_harmonics_and_margins() {
+        let spec = EmissionsPredictor::radiated_emissions(100e6, 1e-4, 0.02, 2e-9, 5);
+        let limit =
+            EmcLimit::for_standard(EmcStandard::Cispr32ClassB, EmcTestType::RadiatedEmissions)
+                .unwrap();
+        let csv = spec.to_csv_with_limit(&limit);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines[0], "frequency_hz,amplitude_dbuv,limit_dbuv,margin_db");
+        assert_eq!(lines.len() - 1, 5);
+        // rows sorted by frequency
+        let f0: f64 = lines[1].split(',').next().unwrap().parse().unwrap();
+        assert!((f0 - 100e6).abs() < 1e3);
     }
 
     #[test]

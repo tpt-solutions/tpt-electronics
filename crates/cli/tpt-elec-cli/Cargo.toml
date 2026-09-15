@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-cli"
-description = "Command-line front end for tpt-electronics (Gerber + power map → thermal CSV)"
+description = "Command-line front end for tpt-electronics (thermal, impedance, DRC)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,6 +23,8 @@ tpt-elec-geometry = { workspace = true }
 tpt-elec-gerber = { workspace = true }
 tpt-elec-kicad = { workspace = true }
 tpt-elec-thermal = { workspace = true }
+tpt-elec-mfg-dfm = { workspace = true }
+tpt-elec-si-impedance = { workspace = true }
 
 [lints]
 workspace = true

@@ -9,6 +9,16 @@
 //!   internal k = 0.024, A in mils²), a widely used simplification of the
 //!   IPC-2152 charts.
 
+//! # Quick start
+//!
+//! ```
+//! use tpt_elec_core::Length;
+//! use tpt_elec_mfg_dfm::{trace_width_for_current, TraceLayer};
+//!
+//! let w = trace_width_for_current(2.0, Length::um(35.0), TraceLayer::External, 20.0);
+//! assert!(w.as_mm() > 0.3 && w.as_mm() < 1.5);
+//! ```
+
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
@@ -174,6 +184,97 @@ impl DrcEngine {
     }
 }
 
+/// Black's equation parameters for electromigration MTTF.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BlackParams {
+    /// Current-density exponent n (2.0 classic Black; 1.1–2.0 observed).
+    pub n: f64,
+    /// Activation energy [eV] (0.5–0.7 eV for Al/Cu interconnects).
+    pub activation_energy_ev: f64,
+    /// Process constant A [h·(A/m²)ⁿ] — relative, calibrate per process.
+    pub constant: f64,
+}
+
+impl Default for BlackParams {
+    fn default() -> Self {
+        Self {
+            n: 2.0,
+            activation_energy_ev: 0.7,
+            constant: 1.0e12,
+        }
+    }
+}
+
+/// Electromigration mean time to failure [hours] per Black's equation:
+/// `MTTF = A·J⁻ⁿ·e^(Ea/kT)`.
+pub fn black_mttf_hours(
+    current_density_a_m2: f64,
+    temperature_k: f64,
+    params: &BlackParams,
+) -> f64 {
+    use tpt_elec_spice_models::{BOLTZMANN, ELEMENTARY_CHARGE};
+    let boltzmann_ev = BOLTZMANN / ELEMENTARY_CHARGE; // 8.617e-5 eV/K
+    params.constant
+        * current_density_a_m2.max(1e-6).powf(-params.n)
+        * (params.activation_energy_ev / (boltzmann_ev * temperature_k.max(1.0))).exp()
+}
+
+/// IPC-2152 style current-capacity estimate with correction factors.
+///
+/// The IPC-2221 formula is the baseline; IPC-2152's published corrections
+/// apply multipliers for adjacent copper planes (≈1.2–2× capacity) and
+/// airflow/vacuum environments. This is a chart-fit approximation —
+/// validate critical designs against the full IPC-2152 charts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Ipc2152Estimator {
+    /// Thickness of adjacent copper plane [m] (0 = no plane).
+    pub plane_thickness: Length,
+    /// Airflow in m/s (0 = natural convection baseline).
+    pub airflow_m_s: f64,
+    /// Vacuum environment: radiation-only cooling reduces capacity.
+    pub vacuum: bool,
+}
+
+impl Ipc2152Estimator {
+    /// Multiplier on the IPC-2221 current for plane proximity.
+    ///
+    /// Planes spread heat; IPC-2152 data shows roughly 1.2–2× capacity as
+    /// plane copper goes from 0.5 oz to 2 oz. Modelled as
+    /// `1 + 0.9·(1 − e^(−plane_oz/1.0))`.
+    pub fn plane_multiplier(&self) -> f64 {
+        let plane_oz = self.plane_thickness.as_um() / 35.0;
+        if plane_oz <= 0.0 {
+            1.0
+        } else {
+            1.0 + 0.9 * (1.0 - (-plane_oz).exp())
+        }
+    }
+
+    /// Multiplier for forced airflow (>1); vacuum reduces to ≈0.7.
+    pub fn airflow_multiplier(&self) -> f64 {
+        if self.vacuum {
+            0.7
+        } else if self.airflow_m_s <= 0.0 {
+            1.0
+        } else {
+            1.0 + 0.5 * (1.0 - (-self.airflow_m_s / 2.0).exp())
+        }
+    }
+
+    /// Estimated current capacity [A] for a temperature rise.
+    pub fn current(
+        &self,
+        width: Length,
+        thickness: Length,
+        layer: TraceLayer,
+        delta_t_k: f64,
+    ) -> f64 {
+        trace_current(width, thickness, layer, delta_t_k)
+            * self.plane_multiplier()
+            * self.airflow_multiplier()
+    }
+}
+
 /// Trace side (affects the k coefficient).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraceLayer {
@@ -284,6 +385,57 @@ mod tests {
             "{}",
             w5a.as_mm()
         );
+    }
+
+    #[test]
+    fn black_equation_scaling_laws() {
+        let p = BlackParams::default(); // n=2, Ea=0.7 eV
+        let j = 1.0e9;
+        let mttf = black_mttf_hours(j, 358.0, &p); // 85 °C
+                                                   // Doubling J with n=2 → MTTF/4
+        let mttf_2j = black_mttf_hours(2.0 * j, 358.0, &p);
+        assert!((mttf / mttf_2j - 4.0).abs() / 4.0 < 1e-9);
+        // +25 °C at Ea=0.7 eV: MTTF drops by exp(Ea/k·(1/T1−1/T2))
+        let mttf_hot = black_mttf_hours(j, 373.0, &p); // 100 °C
+        let boltzmann_ev = 8.617e-5;
+        let expected_ratio = (0.7f64 / boltzmann_ev * (1.0 / 358.0 - 1.0 / 373.0)).exp();
+        assert!(
+            (mttf / mttf_hot - expected_ratio).abs() / expected_ratio < 1e-3,
+            "{} vs {}",
+            mttf / mttf_hot,
+            expected_ratio
+        );
+    }
+
+    #[test]
+    fn ipc2152_estimator_multipliers() {
+        // No plane, no airflow: baseline = IPC-2221
+        let base = Ipc2152Estimator {
+            plane_thickness: Length::ZERO,
+            airflow_m_s: 0.0,
+            vacuum: false,
+        };
+        let w = Length::mm(1.0);
+        let t = Length::um(35.0);
+        let i_base = base.current(w, t, TraceLayer::External, 20.0);
+        let i_direct = trace_current(w, t, TraceLayer::External, 20.0);
+        assert!((i_base - i_direct).abs() < 1e-12);
+        // 2 oz plane: multiplier = 1 + 0.9(1 − e⁻²) ≈ 1.88
+        let plane = Ipc2152Estimator {
+            plane_thickness: Length::um(70.0),
+            airflow_m_s: 0.0,
+            vacuum: false,
+        };
+        let ratio = plane.current(w, t, TraceLayer::External, 20.0) / i_base;
+        assert!((ratio - 1.778).abs() < 0.01, "plane ratio {ratio}");
+        // 2 m/s airflow: multiplier ≈ 1.32
+        let flow = Ipc2152Estimator {
+            plane_thickness: Length::ZERO,
+            airflow_m_s: 2.0,
+            vacuum: false,
+        };
+        let fr = flow.current(w, t, TraceLayer::External, 20.0) / i_base;
+        assert!((fr - 1.316).abs() < 0.01, "airflow {fr}");
     }
 
     #[test]

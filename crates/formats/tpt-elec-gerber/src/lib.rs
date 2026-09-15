@@ -450,7 +450,7 @@ impl GerberParser {
             }
             if work.starts_with('X') || work.starts_with('Y') {
                 let (op, coords) = split_operation(&work)?;
-                let (pos, offsets) = self.to_meters(&coords)?;
+                let (pos, offsets) = self.to_meters(&coords, current_pos)?;
                 self.apply_operation(
                     op,
                     pos,
@@ -552,7 +552,13 @@ impl GerberParser {
 
     /// Converts parsed integer coordinates to meters using the active format.
     /// Returns the position and the I/J arc offsets (in meters), if present.
-    fn to_meters(&self, coords: &Coords) -> Result<(Point2, Option<(f64, f64)>), GerberError> {
+    /// Modal axes: a missing X or Y means "unchanged" per the Gerber spec,
+    /// so the previous position is carried over.
+    fn to_meters(
+        &self,
+        coords: &Coords,
+        previous: Point2,
+    ) -> Result<(Point2, Option<(f64, f64)>), GerberError> {
         let fmt = self.state.format.ok_or_else(|| {
             err(
                 "coordinate seen before %FS format specification",
@@ -565,7 +571,10 @@ impl GerberParser {
         };
         let scale = 10f64.powi(fmt.decimal as i32);
         let conv = |raw: Option<i64>| raw.map(|v| v as f64 / scale * unit_scale);
-        let pos = Point2::new(conv(coords.x).unwrap_or(0.0), conv(coords.y).unwrap_or(0.0));
+        let pos = Point2::new(
+            conv(coords.x).unwrap_or(previous.x),
+            conv(coords.y).unwrap_or(previous.y),
+        );
         let offsets = match (coords.i, coords.j) {
             (Some(i), Some(j)) => {
                 Some((i as f64 / scale * unit_scale, j as f64 / scale * unit_scale))
@@ -1160,6 +1169,39 @@ M30
         let d = GerberParser::parse_drill("M48\nMETRIC\nT1C0.3\n%\nT1\nX1000Y500\nM30\n").unwrap();
         assert!((d.hits[0].x - 1.0e-3).abs() < 1e-12);
         assert!((d.hits[0].y - 0.5e-3).abs() < 1e-12);
+    }
+
+    #[test]
+    fn modal_coordinates_carry_over_missing_axis() {
+        // Regression (B2): a coordinate line missing X or Y must reuse the
+        // previous position for that axis.
+        let p = GerberParser::parse(
+            "%FSLAX36Y36*%
+%MOMM*%
+%ADD10C,0.25*%
+G01*
+D10*
+X5000000Y5000000D02*
+X10000000D01*
+Y10000000D01*
+M02*
+",
+        )
+        .unwrap();
+        let lines: Vec<_> = p
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, Primitive::Line { .. }))
+            .collect();
+        assert_eq!(lines.len(), 2);
+        if let Primitive::Line { start, end, .. } = lines[0] {
+            assert!((start.x - 5.0e-3).abs() < 1e-12 && (start.y - 5.0e-3).abs() < 1e-12);
+            assert!((end.x - 10.0e-3).abs() < 1e-12 && (end.y - 5.0e-3).abs() < 1e-12);
+        }
+        if let Primitive::Line { start, end, .. } = lines[1] {
+            assert!((start.x - 10.0e-3).abs() < 1e-12);
+            assert!((end.x - 10.0e-3).abs() < 1e-12 && (end.y - 10.0e-3).abs() < 1e-12);
+        }
     }
 
     #[test]

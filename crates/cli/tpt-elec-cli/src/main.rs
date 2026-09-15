@@ -2,19 +2,14 @@
 
 //! `tpt-elec-cli` — command-line front end for tpt-electronics.
 //!
-//! Phase 1 milestone (spec §10): takes Gerber + a power map and produces a
-//! thermal CSV.
+//! Subcommands:
 //!
 //! ```text
-//! tpt-elec-cli thermal \
-//!   --gerber top.gtl --gerber bottom.gbl \
-//!   --power-map power.csv \
-//!   --out thermal.csv \
-//!   --resolution-mm 1.0 --thickness-mm 1.6 \
-//!   --h-conv 10 --ambient-c 25
+//! tpt-elec-cli thermal --gerber top.gtl --power-map power.csv --out thermal.csv
+//! tpt-elec-cli impedance --width-mm 0.35 --height-mm 0.2 --er 4.4
+//! tpt-elec-cli impedance --suggest --height-mm 0.2 --er 4.4 --target 50
+//! tpt-elec-cli drc --kicad board.kicad_pcb
 //! ```
-//!
-//! The power map CSV has `x_mm,y_mm,watts` rows (header optional).
 
 #![forbid(unsafe_code)]
 
@@ -24,6 +19,7 @@ use std::process::ExitCode;
 
 use tpt_elec_gerber::GerberParser;
 use tpt_elec_materials::MaterialDatabase;
+use tpt_elec_mfg_dfm::{DesignRuleSet, DrcEngine};
 use tpt_elec_thermal::{BoundaryCondition, ThermalSolver};
 
 struct Args {
@@ -35,36 +31,65 @@ struct Args {
     thickness_mm: f64,
     h_conv: f64,
     ambient_c: f64,
+    format: String,
+    kicad: Option<PathBuf>,
+    width_mm: f64,
+    height_mm: f64,
+    er: f64,
+    target_ohm: f64,
+    suggest: bool,
+    min_width_um: f64,
 }
 
 fn print_usage() {
     eprintln!(
         "tpt-electronics CLI\n\n\
          USAGE:\n    \
-         tpt-elec-cli thermal [OPTIONS]\n\n\
-         OPTIONS:\n    \
-         --gerber <file>      Copper-layer Gerber file (repeatable; first = top)\n    \
-         --power-map <csv>    Heat sources: rows `x_mm,y_mm,watts`\n    \
-         --out <csv>          Output temperature field CSV\n    \
-         --resolution-mm <f>  Voxel edge length [default 1.0]\n    \
-         --thickness-mm <f>   Substrate thickness [default 1.6]\n    \
-         --h-conv <f>         Natural-convection coefficient W/(m2*K) [default 10]\n    \
-         --ambient-c <f>      Ambient temperature [default 25]\n    \
-         --help               Show this message"
+         tpt-elec-cli <COMMAND> [OPTIONS]\n\n\
+         COMMANDS:\n    \
+         thermal      Gerber + power map → temperature field\n    \
+         impedance    Microstrip impedance (forward or inverse)\n    \
+         drc          Design-rule check a .kicad_pcb file\n\n\
+         THERMAL OPTIONS:\n    \
+         --gerber <file>      Copper Gerber (repeatable; first = top)\n    \
+         --power-map <csv>    Heat sources: `x_mm,y_mm,watts` rows\n    \
+         --out <csv>          Output file\n    \
+         --format <csv|json>  Output format [csv]\n    \
+         --resolution-mm <f>  Voxel edge [1.0]\n    \
+         --thickness-mm <f>   Substrate thickness [1.6]\n    \
+         --h-conv <f>         Convection W/(m²·K) [10]\n    \
+         --ambient-c <f>      Ambient [25]\n\n\
+         IMPEDANCE OPTIONS:\n    \
+         --width-mm <f>       Trace width [mm]\n    \
+         --height-mm <f>      Dielectric height [mm]\n    \
+         --er <f>             Relative permittivity [4.4]\n    \
+         --suggest            Solve inverse: find width for target\n    \
+         --target <ohm>       Target impedance for --suggest [50]\n\n\
+         DRC OPTIONS:\n    \
+         --kicad <file>       .kicad_pcb file to check\n    \
+         --min-width-um <f>   Min trace width [µm, 150]"
     );
 }
 
 fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
+    let items: Vec<String> = args.collect();
     let mut command = String::new();
     let mut gerbers = Vec::new();
     let mut power_map = None;
     let mut out = PathBuf::from("thermal.csv");
-    let mut resolution_mm = 1.0;
-    let mut thickness_mm = 1.6;
-    let mut h_conv = 10.0;
-    let mut ambient_c = 25.0;
+    let mut resolution_mm = 1.0f64;
+    let mut thickness_mm = 1.6f64;
+    let mut h_conv = 10.0f64;
+    let mut ambient_c = 25.0f64;
+    let mut format = "csv".to_string();
+    let mut kicad: Option<PathBuf> = None;
+    let mut width_mm = 0.0f64;
+    let mut height_mm = 0.0f64;
+    let mut er = 4.4f64;
+    let mut target_ohm = 50.0f64;
+    let mut suggest = false;
+    let mut min_width_um = 150.0f64;
 
-    let items: Vec<String> = args.collect();
     let mut i = 0;
     while i < items.len() {
         match items[i].as_str() {
@@ -84,6 +109,10 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
             "--out" => {
                 i += 1;
                 out = PathBuf::from(items.get(i).ok_or("--out needs a file")?);
+            }
+            "--format" => {
+                i += 1;
+                format = items.get(i).ok_or("--format needs a value")?.clone();
             }
             "--resolution-mm" => {
                 i += 1;
@@ -113,13 +142,53 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
                     .and_then(|s| s.parse().ok())
                     .ok_or("--ambient-c needs a number")?;
             }
+            "--kicad" => {
+                i += 1;
+                kicad = Some(PathBuf::from(items.get(i).ok_or("--kicad needs a file")?));
+            }
+            "--width-mm" => {
+                i += 1;
+                width_mm = items
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or("--width-mm needs a number")?;
+            }
+            "--height-mm" => {
+                i += 1;
+                height_mm = items
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or("--height-mm needs a number")?;
+            }
+            "--er" => {
+                i += 1;
+                er = items
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or("--er needs a number")?;
+            }
+            "--target" => {
+                i += 1;
+                target_ohm = items
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or("--target needs a number")?;
+            }
+            "--suggest" => suggest = true,
+            "--min-width-um" => {
+                i += 1;
+                min_width_um = items
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .ok_or("--min-width-um needs a number")?;
+            }
             other if command.is_empty() && !other.starts_with('-') => command = other.to_string(),
             other => return Err(format!("unknown or misplaced argument {other:?}")),
         }
         i += 1;
     }
     if command.is_empty() {
-        return Err("no command given".to_string());
+        return Err("no command given".into());
     }
     Ok(Args {
         command,
@@ -130,6 +199,14 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
         thickness_mm,
         h_conv,
         ambient_c,
+        format,
+        kicad,
+        width_mm,
+        height_mm,
+        er,
+        target_ohm,
+        suggest,
+        min_width_um,
     })
 }
 
@@ -139,7 +216,13 @@ fn read_file(path: &PathBuf) -> Result<String, String> {
 
 fn run_thermal(args: &Args) -> Result<(), String> {
     if args.gerbers.is_empty() {
-        return Err("at least one --gerber is required".to_string());
+        return Err("at least one --gerber is required".into());
+    }
+    if args.gerbers.len() > 1 {
+        eprintln!(
+            "note: {} additional --gerber file(s) ignored (top layer only in this release)",
+            args.gerbers.len() - 1
+        );
     }
     let top_src = read_file(&args.gerbers[0])?;
     let gerber =
@@ -155,7 +238,6 @@ fn run_thermal(args: &Args) -> Result<(), String> {
     );
     solver.set_ambient(args.ambient_c);
 
-    // Convection over the whole top surface.
     let top_nodes: Vec<u32> = {
         let g = solver.grid();
         let z = g.nz() - 1;
@@ -170,10 +252,8 @@ fn run_thermal(args: &Args) -> Result<(), String> {
         t_ambient: args.ambient_c,
     });
 
-    // Heat sources from the power map.
     if let Some(map_path) = &args.power_map {
         let csv = read_file(map_path)?;
-        let mut count = 0;
         for (lineno, line) in csv.lines().enumerate() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') || line.starts_with("x_mm") {
@@ -195,27 +275,46 @@ fn run_thermal(args: &Args) -> Result<(), String> {
             let w = parts[2]
                 .parse::<f64>()
                 .map_err(|_| format!("{}:{lineno}: bad watts", map_path.display()))?;
-            // from_gerber uses meters with mm-file input; power map is in mm.
             solver.add_heat_source_near(x * 1e-3, y * 1e-3, w);
-            count += 1;
         }
-        eprintln!("loaded {count} heat sources");
     }
 
     let result = solver.solve_steady_state();
 
-    // Emit CSV: x_mm,y_mm,z_mm,temperature_c
+    match args.format.as_str() {
+        "json" => {
+            let g = solver.grid();
+            println!(
+                "{{\"max_temp_c\":{:.2},\"cells\":{},\"grid\":[{},{},{}],\"residual\":{:.1e}}}",
+                result.max_temp,
+                result.temperatures.len(),
+                g.nx(),
+                g.ny(),
+                g.nz(),
+                result.residual
+            );
+        }
+        _ => {
+            println!(
+                "max temperature: {:.1} °C at cell {:?} ({} cells)",
+                result.max_temp,
+                result.max_temp_location,
+                result.temperatures.len()
+            );
+        }
+    }
+
     let g = solver.grid();
-    let mut out_lines = Vec::with_capacity(result.temperatures.len() + 1);
-    out_lines.push("x_mm,y_mm,z_mm,temperature_c".to_string());
-    for (i, t) in result.temperatures.iter().enumerate() {
-        let nx = g.nx() as usize;
-        let ny = g.ny() as usize;
-        let z = (i / (nx * ny)) as u32;
-        let y = ((i % (nx * ny)) / nx) as u32;
-        let x = (i % nx) as u32;
+    let mut lines = Vec::with_capacity(result.temperatures.len() + 1);
+    lines.push("x_mm,y_mm,z_mm,temperature_c".to_string());
+    let nx = g.nx() as usize;
+    let ny = g.ny() as usize;
+    for (idx, t) in result.temperatures.iter().enumerate() {
+        let z = (idx / (nx * ny)) as u32;
+        let y = ((idx % (nx * ny)) / nx) as u32;
+        let x = (idx % nx) as u32;
         let c = g.center_of(x, y, z);
-        out_lines.push(format!(
+        lines.push(format!(
             "{:.3},{:.3},{:.4},{:.2}",
             c.x * 1e3,
             c.y * 1e3,
@@ -223,45 +322,108 @@ fn run_thermal(args: &Args) -> Result<(), String> {
             t
         ));
     }
-    fs::write(&args.out, out_lines.join("\n") + "\n")
+    fs::write(&args.out, lines.join("\n") + "\n")
         .map_err(|e| format!("cannot write {}: {e}", args.out.display()))?;
-
-    println!(
-        "max temperature: {:.1} °C at cell {:?} ({} cells, residual {:.1e})",
-        result.max_temp,
-        result.max_temp_location,
-        result.temperatures.len(),
-        result.residual
-    );
-    println!("temperature field written to {}", args.out.display());
+    eprintln!("field written to {}", args.out.display());
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let args = match parse_args(std::env::args().skip(1)) {
-        Ok(a) => a,
-        Err(e) if e == "help" => {
-            print_usage();
-            return ExitCode::SUCCESS;
+fn run_impedance(args: &Args) -> Result<(), String> {
+    use tpt_elec_si_impedance::ImpedanceCalculator;
+    let thickness = Length::um(35.0);
+    if args.suggest {
+        let w = ImpedanceCalculator::suggest_microstrip(
+            args.target_ohm,
+            thickness,
+            Length::mm(args.height_mm),
+            args.er,
+        );
+        let z = ImpedanceCalculator::microstrip(w, thickness, Length::mm(args.height_mm), args.er);
+        println!(
+            "suggested width: {:.1} µm (Z0 = {:.2} Ω, target {:.0} Ω)",
+            w.as_um(),
+            z.z0,
+            args.target_ohm
+        );
+    } else {
+        if args.width_mm <= 0.0 || args.height_mm <= 0.0 {
+            return Err("--width-mm and --height-mm required for forward mode".into());
         }
-        Err(e) => {
-            eprintln!("error: {e}\n");
-            print_usage();
-            return ExitCode::FAILURE;
-        }
+        let line = ImpedanceCalculator::microstrip(
+            Length::mm(args.width_mm),
+            thickness,
+            Length::mm(args.height_mm),
+            args.er,
+        );
+        println!("Z0 = {:.2} Ω", line.z0);
+    }
+    Ok(())
+}
+
+fn run_drc(args: &Args) -> Result<(), String> {
+    let board_path = args.kicad.as_ref().ok_or("--kicad <file> is required")?;
+    let src = read_file(board_path)?;
+    let board = tpt_elec_kicad::KiCadParser::parse_pcb(&src)
+        .map_err(|e| format!("{}: {e}", board_path.display()))?;
+    let rules = DesignRuleSet {
+        min_trace_width: Length::um(args.min_width_um),
+        ..Default::default()
     };
-    match args.command.as_str() {
-        "thermal" => match run_thermal(&args) {
+    let result = DrcEngine::new(rules).run(&board);
+    for finding in &result.findings {
+        println!("{finding}");
+    }
+    println!(
+        "{}: {} finding(s), {}",
+        board_path.display(),
+        result.findings.len(),
+        if result.passed() { "PASS" } else { "FAIL" }
+    );
+    if result.passed() {
+        Ok(())
+    } else {
+        Err("DRC failed".into())
+    }
+}
+
+fn main() -> ExitCode {
+    match parse_args(std::env::args().skip(1)) {
+        Ok(a) if a.command == "thermal" => match run_thermal(&a) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {e}");
                 ExitCode::FAILURE
             }
         },
-        other => {
-            eprintln!("error: unknown command {other:?}\n");
+        Ok(a) if a.command == "impedance" => match run_impedance(&a) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        Ok(a) if a.command == "drc" => match run_drc(&a) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        Ok(a) => {
+            eprintln!("error: unknown command {:?}\n", a.command);
+            print_usage();
+            ExitCode::FAILURE
+        }
+        Err(e) if e == "help" => {
+            print_usage();
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("error: {e}\n");
             print_usage();
             ExitCode::FAILURE
         }
     }
 }
+
+use tpt_elec_core::Length;

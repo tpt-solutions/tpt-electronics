@@ -109,6 +109,13 @@ pub enum FilterElement {
     SeriesC(f64),
     /// Shunt inductor [H] (band-pass/high-pass).
     ShuntL(f64),
+    /// Shunt parallel L-C resonator (band-pass shunt arm).
+    ShuntParallelLc {
+        /// Inductance [H].
+        l: f64,
+        /// Capacitance [F].
+        c: f64,
+    },
 }
 
 /// Ladder topology orientation.
@@ -193,7 +200,9 @@ impl FilterSynthesizer {
                     gn1: row[1 + n],
                 })
             }
-            other => Err(format!("{other:?}: table-driven synthesis scaffolded")),
+            other => Err(format!(
+                "{other:?}: no ladder table (Chebyshev-II uses pole/zero synthesis; Elliptic is deferred)"
+            )),
         }
     }
 
@@ -203,10 +212,20 @@ impl FilterSynthesizer {
         response: FilterResponse,
         impedance: f64,
     ) -> Result<Filter, String> {
+        if matches!(
+            filter_type,
+            FilterType::ChebyshevType2 { .. } | FilterType::Elliptic { .. }
+        ) {
+            return Err(
+                "Chebyshev-II / Elliptic synthesis is deferred: it requires Cauer g-tables or                  full elliptic-function pole extraction (rfcs/0004 — contributions welcome)"
+                    .to_string(),
+            );
+        }
         let proto = Self::g_values(&filter_type)?;
         let (f_low, f_high, kind) = match response {
             FilterResponse::LowPass { cutoff } => (cutoff, cutoff, 0u8),
             FilterResponse::HighPass { cutoff } => (cutoff, cutoff, 1),
+            // For band-pass: f_low = center, f_high = absolute bandwidth.
             FilterResponse::BandPass { center, bandwidth } => (center, bandwidth, 2),
             FilterResponse::BandStop { center, bandwidth } => (center, bandwidth, 3),
         };
@@ -220,27 +239,49 @@ impl FilterSynthesizer {
         let mut components = Vec::with_capacity(proto.g.len());
         for (i, &g) in proto.g.iter().enumerate() {
             let is_shunt = (i % 2 == 0) == shunt_first;
-            let raw = match kind {
+            let produced: Vec<FilterElement> = match kind {
                 0 => {
                     // Low pass: g1 → C (shunt) = g/(ωc·Z), or L (series) = g·Z/ωc
                     if is_shunt {
-                        FilterElement::ShuntC(g / (omega_c * impedance))
+                        vec![FilterElement::ShuntC(g / (omega_c * impedance))]
                     } else {
-                        FilterElement::SeriesL(g * impedance / omega_c)
+                        vec![FilterElement::SeriesL(g * impedance / omega_c)]
                     }
                 }
                 1 => {
                     // High pass: capacitor g → series C = 1/(g·ωc·Z);
                     // inductor g → shunt L = Z/(g·ωc)
                     if is_shunt {
-                        FilterElement::ShuntL(impedance / (g * omega_c))
+                        vec![FilterElement::ShuntL(impedance / (g * omega_c))]
                     } else {
-                        FilterElement::SeriesC(1.0 / (g * omega_c * impedance))
+                        vec![FilterElement::SeriesC(1.0 / (g * omega_c * impedance))]
                     }
                 }
-                _ => return Err("band-pass/band-stop synthesis scaffolded".into()),
+                2 => {
+                    // Band-pass: each LP element becomes a resonator. With
+                    // the low-pass variable ω' = (ω0/w)·(ω/ω0 − ω0/ω), the
+                    // LP cutoff ω' = 1 maps to ω = ω0 (center), so the
+                    // denormalization uses ω0: fractional w = BW/f0.
+                    let w_frac = f_high / f_low;
+                    let z0 = impedance;
+                    if is_shunt {
+                        // shunt C(g) → shunt parallel LC:
+                        // C' = g/(Z0·w·ω0), L' = Z0·w/(g·ω0)
+                        let c1 = g / (z0 * w_frac * omega_c);
+                        let l1 = z0 * w_frac / (g * omega_c);
+                        vec![FilterElement::ShuntParallelLc { l: l1, c: c1 }]
+                    } else {
+                        // series L(g) → series series-LC:
+                        // L' = g·Z0/(w·ω0), C' = w/(g·Z0·ω0)
+                        vec![
+                            FilterElement::SeriesL(g * z0 / (w_frac * omega_c)),
+                            FilterElement::SeriesC(w_frac / (g * z0 * omega_c)),
+                        ]
+                    }
+                }
+                _ => return Err("band-stop synthesis deferred (needs resonator duals)".into()),
             };
-            components.push(raw);
+            components.extend(produced);
         }
 
         let mut filter = Filter {
@@ -256,8 +297,10 @@ impl FilterSynthesizer {
         };
 
         // ABCD S-parameter sweep (evaluation only; exact for the ladder).
-        let f_start = f_low / 20.0;
-        let f_stop = f_low * 20.0;
+        let (f_start, f_stop) = match response {
+            FilterResponse::BandPass { center, .. } => (center / 10.0, center * 10.0),
+            _ => (f_low / 20.0, f_low * 20.0),
+        };
         let points = 201;
         for k in 0..points {
             let f = f_start * (f_stop / f_start).powf(k as f64 / (points - 1) as f64);
@@ -273,7 +316,7 @@ impl Filter {
     fn abcd_s21_s11(&self, f: f64) -> SParameterMatrix {
         let mut abcd = [Complex::ONE, Complex::ZERO, Complex::ZERO, Complex::ONE];
         for el in self.components.iter() {
-            let is_shunt = matches!(el, FilterElement::ShuntC(_) | FilterElement::ShuntL(_));
+            let _ = el;
             let m = match el {
                 FilterElement::SeriesL(l) => [
                     Complex::ONE,
@@ -299,8 +342,14 @@ impl Filter {
                     Complex::new(0.0, -1.0 / (std::f64::consts::TAU * f * l)),
                     Complex::ONE,
                 ],
+                FilterElement::ShuntParallelLc { l, c } => {
+                    let y = Complex::new(
+                        0.0,
+                        std::f64::consts::TAU * f * c - 1.0 / (std::f64::consts::TAU * f * l),
+                    );
+                    [Complex::ONE, Complex::ZERO, y, Complex::ONE]
+                }
             };
-            let _ = is_shunt;
             abcd = abcd_mul(abcd, m);
         }
         let z0 = Complex::real(self.impedance);
@@ -511,15 +560,34 @@ mod tests {
     }
 
     #[test]
-    fn band_pass_rejected_until_implemented() {
-        let r = FilterSynthesizer::synthesize(
+    fn band_pass_synthesis_and_response() {
+        let f0 = 100e6;
+        let bw = 10e6; // 10 % fractional
+        let filter = FilterSynthesizer::synthesize(
             FilterType::Butterworth { order: 3 },
             FilterResponse::BandPass {
-                center: 100e6,
-                bandwidth: 10e6,
+                center: f0,
+                bandwidth: bw,
             },
             50.0,
-        );
-        assert!(r.is_err());
+        )
+        .unwrap();
+        // Peak at center (maps to LP DC): ~0 dB
+        let peak = Filter::insertion_loss_db(&filter, f0);
+        assert!(peak.abs() < 0.3, "peak {peak}");
+        // Edges: the geometric transformation maps the LP −3 dB corner to
+        // f0·(sqrt(1+(w/2)²) ± w/2) — slightly outside ±BW/2 — so we check
+        // the response is between the passband peak and −6 dB there.
+        let lo = Filter::insertion_loss_db(&filter, f0 - bw / 2.0);
+        let hi = Filter::insertion_loss_db(&filter, f0 + bw / 2.0);
+        assert!(lo < -1.0 && lo > -6.0, "lo {lo}");
+        assert!(hi < -1.0 && hi > -6.0, "hi {hi}");
+        // Rejection far from the band
+        assert!(Filter::insertion_loss_db(&filter, f0 / 4.0) < -20.0);
+        assert!(Filter::insertion_loss_db(&filter, f0 * 4.0) < -20.0);
+        // Log-symmetric skirts for the transformed Butterworth
+        let below = Filter::insertion_loss_db(&filter, f0 / 1.5);
+        let above = Filter::insertion_loss_db(&filter, f0 * 1.5);
+        assert!((below - above).abs() < 1.0, "below {below} above {above}");
     }
 }

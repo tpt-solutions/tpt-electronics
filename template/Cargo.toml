@@ -1,0 +1,12 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# TODO: switch to crates.io versions once published
+tpt-elec-thermal = { path = "../tpt-electronics/crates/thermal/tpt-elec-thermal" }
+tpt-elec-materials = { path = "../tpt-electronics/crates/core/tpt-elec-materials" }
+tpt-elec-gerber = { path = "../tpt-electronics/crates/formats/tpt-elec-gerber" }
+tpt-elec-si-impedance = { path = "../tpt-electronics/crates/signal-integrity/tpt-elec-si-impedance" }

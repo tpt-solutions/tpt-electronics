@@ -51,11 +51,23 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p tpt-elec-cli --target ${{ matrix.target }}
+      - name: Build CLI
+        run: cargo build --release -p tpt-elec-cli --target ${{ matrix.target }}
+      - name: Archive binary
+        shell: bash
+        run: |
+          dir=target/${{ matrix.target }}/release
+          name=tpt-elec-cli-${{ matrix.target }}
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a "$name.zip" "$dir/tpt-elec-cli.exe"
+          else
+            chmod +x "$dir/tpt-elec-cli"
+            zip -j "$name.zip" "$dir/tpt-elec-cli"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: tpt-elec-cli-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/
+          path: tpt-elec-cli-${{ matrix.target }}.zip
 
   publish:
     # Dry-runnable by maintainers; requires CARGO_REGISTRY_TOKEN secret.
