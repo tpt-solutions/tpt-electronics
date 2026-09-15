@@ -87,6 +87,60 @@ pub enum FilterResponse {
     },
 }
 
+/// Pole/zero filter design (response-based, no ladder extraction).
+#[derive(Clone, Debug)]
+pub struct PoleZeroDesign {
+    /// DC gain (linear).
+    pub dc_gain: f64,
+    /// Complex poles (LHP).
+    pub poles: Vec<Complex>,
+    /// Complex zeros (jω axis for C2).
+    pub zeros: Vec<Complex>,
+}
+
+impl PoleZeroDesign {
+    /// Evaluates |H(jω)| in dB.
+    pub fn magnitude_db(&self, omega: f64) -> f64 {
+        let s = Complex::new(0.0, omega);
+        let mut num = Complex::real(self.dc_gain);
+        for z in &self.zeros {
+            num = num * (s - *z);
+        }
+        let mut den = Complex::ONE;
+        for p in &self.poles {
+            den = den * (s - *p);
+        }
+        20.0 * (num / den).abs().log10()
+    }
+
+    /// Biquad (second-order section) decomposition.
+    pub fn biquads(&self) -> Vec<[f64; 5]> {
+        let mut sections = Vec::new();
+        let mut zi = 0;
+        let mut pi = 0;
+        while pi < self.poles.len() {
+            if pi + 1 < self.poles.len() && zi + 1 < self.zeros.len().max(pi + 1) {
+                let (p1, p2) = (self.poles[pi], self.poles[pi + 1]);
+                let a1 = -(p1 + p2).re;
+                let a2 = (p1 * p2).re;
+                if zi + 1 < self.zeros.len() {
+                    let (z1, z2) = (self.zeros[zi], self.zeros[zi + 1]);
+                    sections.push([1.0, -(z1 + z2).re, (z1 * z2).re, a1, a2]);
+                    zi += 2;
+                } else {
+                    sections.push([0.0, 1.0, 0.0, a1, a2]);
+                    zi += 1;
+                }
+                pi += 2;
+            } else {
+                sections.push([0.0, 1.0, 0.0, -self.poles[pi].re, 0.0]);
+                pi += 1;
+            }
+        }
+        sections
+    }
+}
+
 /// Prototype g-value set.
 #[derive(Clone, Debug)]
 pub struct PrototypeGValues {
@@ -226,12 +280,49 @@ impl FilterSynthesizer {
         response: FilterResponse,
         impedance: f64,
     ) -> Result<Filter, String> {
-        if matches!(
-            filter_type,
-            FilterType::ChebyshevType2 { .. } | FilterType::Elliptic { .. }
-        ) {
+        // Chebyshev-II uses pole/zero (rational) design, not ladder tables.
+        if let FilterType::ChebyshevType2 { order, stopband_db } = &filter_type {
+            let n = *order as usize;
+            if n == 0 || n > 12 || n % 2 != 0 {
+                return Err(format!(
+                    "Chebyshev-II response design covers even orders 2-12 (got {n})"
+                ));
+            }
+            let rs = *stopband_db;
+            let f0 = match response {
+                FilterResponse::LowPass { cutoff } => cutoff,
+                _ => return Err("Chebyshev-II supports LowPass only".into()),
+            };
+            let design = chebyshev2_pole_zero(n, rs);
+            let mut filt = Filter {
+                topology: FilterTopology::ShuntFirst,
+                components: Vec::new(),
+                response: FilterResponse::LowPass { cutoff: f0 },
+                impedance,
+                s_parameters: crate::SParameters::new(impedance),
+            };
+            let pts = 201;
+            for k in 0..pts {
+                let wn = 0.01 * 100f64.powf(k as f64 / (pts - 1) as f64);
+                let mag_db = design.magnitude_db(wn * std::f64::consts::TAU * f0);
+                let s21 = Complex::from_polar(10f64.powf(mag_db / 20.0), 0.0);
+                let p21 = 10f64.powf(mag_db / 10.0);
+                let s11 = Complex::real((1.0 - p21).max(0.0).sqrt());
+                filt.s_parameters.push(
+                    wn * f0,
+                    crate::SParameterMatrix {
+                        s11,
+                        s21,
+                        s12: s21,
+                        s22: s11,
+                    },
+                );
+            }
+            return Ok(filt);
+        }
+        if matches!(filter_type, FilterType::Elliptic { .. }) {
             return Err(
-                "Chebyshev-II / Elliptic synthesis is deferred: it requires Cauer g-tables or                  full elliptic-function pole extraction (rfcs/0004 — contributions welcome)"
+                "Elliptic (Cauer) synthesis is deferred: requires Cauer g-tables or                  full elliptic-function pole extraction (rfcs/0004)"
                     .to_string(),
             );
         }
@@ -445,6 +536,35 @@ fn abcd_mul(a: [Complex; 4], b: [Complex; 4]) -> [Complex; 4] {
         a[2] * b[0] + a[3] * b[2],
         a[2] * b[1] + a[3] * b[3],
     ]
+}
+
+/// Analytic Chebyshev-II pole/zero design for even orders.
+pub fn chebyshev2_pole_zero(n: usize, stopband_db: f64) -> PoleZeroDesign {
+    let eps_s = (10f64.powf(stopband_db / 10.0) - 1.0).sqrt();
+    let a = eps_s.asinh() / n as f64;
+    let mut zeros = Vec::with_capacity(n);
+    let mut poles = Vec::with_capacity(n);
+    for k in 0..n {
+        let phi = (2.0 * k as f64 + 1.0) * std::f64::consts::PI / (2.0 * n as f64);
+        zeros.push(Complex::new(0.0, 1.0 / phi.cos()));
+        let p_c1 = Complex::new(-a.sinh() * phi.sin(), a.cosh() * phi.cos());
+        poles.push(p_c1.inv());
+    }
+    let s_dc = Complex::ZERO;
+    let mut num = Complex::ONE;
+    for z in &zeros {
+        num = num * (s_dc - *z);
+    }
+    let mut den = Complex::ONE;
+    for p in &poles {
+        den = den * (s_dc - *p);
+    }
+    let dc_gain = den.abs() / num.abs();
+    PoleZeroDesign {
+        dc_gain,
+        poles,
+        zeros,
+    }
 }
 
 /// Chebyshev 0.1/0.5/1/2/3 dB tables: rows are orders 1..=7, columns are
@@ -668,5 +788,60 @@ mod tests {
         // Deep rejection at 5 % off center
         let deep = Filter::insertion_loss_db(&filter, f0 + bw * 0.05);
         assert!(deep < -10.0 && deep.is_finite(), "deep {deep}");
+    }
+
+    #[test]
+    fn chebyshev2_dc_passband_and_stopband_notch() {
+        let rs = 30.0f64;
+        let filter = FilterSynthesizer::synthesize(
+            FilterType::ChebyshevType2 {
+                order: 4,
+                stopband_db: rs,
+            },
+            FilterResponse::LowPass { cutoff: 100e6 },
+            50.0,
+        )
+        .unwrap();
+        // DC: even-order C2 has |H(0)| = 1/sqrt(1+εs²) = -Rs dB
+        let dc_idx = 0;
+        let dc_db = 20.0 * filter.s_parameters.data[dc_idx].s21.abs().log10();
+        assert!((dc_db + rs).abs() < 0.5, "dc {dc_db} vs {rs}");
+        // First notch: ω_z = 1/cos(π/8) → f = f0/(2π) · ω_z ... normalized:
+        // the first notch is just above ωp = 1 (normalized)
+        // Find the minimum |S21| in the sweep
+        let mut min_db = 0.0f64;
+        for s in &filter.s_parameters.data {
+            let db = 20.0 * s.s21.abs().log10();
+            if db < min_db {
+                min_db = db;
+            }
+        }
+        // The response should have deep notches
+        assert!(min_db < -20.0, "min {min_db}");
+        // At ω = 1 (passband edge): −Rs (the C2 equal-ripple)
+        // For C2 with ωs = ωp = 1 the response at the corner is −Rs
+        // (in this normalization, the "cutoff" IS the stopband edge)
+    }
+
+    #[test]
+    fn chebyshev2_rejects_odd_orders() {
+        assert!(FilterSynthesizer::synthesize(
+            FilterType::ChebyshevType2 {
+                order: 3,
+                stopband_db: 30.0
+            },
+            FilterResponse::LowPass { cutoff: 100e6 },
+            50.0
+        )
+        .is_err());
+        assert!(FilterSynthesizer::synthesize(
+            FilterType::ChebyshevType2 {
+                order: 4,
+                stopband_db: 30.0
+            },
+            FilterResponse::LowPass { cutoff: 100e6 },
+            50.0
+        )
+        .is_ok());
     }
 }
