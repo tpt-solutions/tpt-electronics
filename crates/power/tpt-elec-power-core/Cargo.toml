@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics power electronics crate"
+description = "Converter topologies and first-pass automated design (duty, ripple, L/C sizing, efficiency)"
+
+keywords = ["buck", "boost", "converter", "power-electronics", "duty-cycle"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

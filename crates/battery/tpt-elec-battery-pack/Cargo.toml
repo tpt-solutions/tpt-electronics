@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Series/parallel pack composition"
+description = "Pack-level series/parallel composition with SOC/thermal aggregation and BMS alarms"
+
+keywords = ["pack", "series", "parallel", "soc", "thermal-supervision"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

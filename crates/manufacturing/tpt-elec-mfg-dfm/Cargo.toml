@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "DRC engine, IPC-2152/2221 trace sizing, electromigration"
+description = "DRC engine and IPC-2152/2221 trace sizing with electromigration lifetime (Blacks equation)"
+
+keywords = ["dfm", "drc", "ipc-2152", "ipc-2221", "electromigration"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

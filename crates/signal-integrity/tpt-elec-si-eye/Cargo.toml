@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Eye diagram analysis with jitter separation and standard masks"
+description = "Eye diagram analysis: UI folding, jitter separation, and PCIe/DDR/USB/Ethernet masks"
+
+keywords = ["eye-diagram", "pcie", "ddr", "jitter", "mask"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

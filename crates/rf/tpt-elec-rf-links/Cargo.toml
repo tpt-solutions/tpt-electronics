@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics RF crate"
+description = "End-to-end RF chain composition with Friis gain/NF/IIP3 and SFDR"
+
+keywords = ["rf-chain", "noise-figure", "sfdr", "link-budget", "cascade"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

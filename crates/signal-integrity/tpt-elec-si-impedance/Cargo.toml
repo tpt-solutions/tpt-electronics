@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Characteristic impedance calculators (microstrip, stripline, differential pair)"
+description = "Characteristic impedance: Hammerstad-Jensen microstrip, stripline, differential pair, and inverse solver"
+
+keywords = ["impedance", "microstrip", "stripline", "hammerstad-jensen", "differential"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

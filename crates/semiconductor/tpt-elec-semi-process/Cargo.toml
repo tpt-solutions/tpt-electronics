@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics semiconductor crate"
+description = "Process design kit abstractions: interconnect RC, vias, and design rules"
+
+keywords = ["pdk", "technology-node", "interconnect", "electromigration", "design-rules"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

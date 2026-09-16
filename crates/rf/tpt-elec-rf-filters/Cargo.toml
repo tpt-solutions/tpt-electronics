@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics RF crate"
+description = "LC ladder filter synthesis: Butterworth, Chebyshev, Bessel with ABCD-verified S-parameters"
+
+keywords = ["filter", "butterworth", "chebyshev", "bessel", "lc-ladder"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

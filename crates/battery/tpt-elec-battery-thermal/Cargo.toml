@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Thermal runaway propagation modeling"
+description = "Thermal runaway propagation modeling with adjacency-based cell-to-cell networks"
+
+keywords = ["thermal-runaway", "propagation", "adjacency", "pack-safety", "lithium"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

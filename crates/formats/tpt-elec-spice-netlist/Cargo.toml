@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-spice-netlist"
-description = "SPICE netlist parser producing tpt-elec-spice-core circuits"
+description = "SPICE netlist parser producing circuit graphs with .model, .subckt, and unit suffixes"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["spice", "netlist", "parser", "circuit", "eda"]
+categories = ["parser", "science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "ODB++ (ZIP) reader for manufacturing data exchange"
+description = "ODB++ (ZIP) reader with in-tree DEFLATE for manufacturing data exchange"
+
+keywords = ["odbpp", "odb", "pcb", "zip", "manufacturing"]
+categories = ["parser", "hardware-support"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

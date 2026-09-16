@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-transient"
-description = "Transient thermal time integration for PCB models"
+description = "Transient thermal time integration (implicit/explicit Euler) with adaptive stepping"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["transient", "thermal", "time-integration", "euler", "power-cycling"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

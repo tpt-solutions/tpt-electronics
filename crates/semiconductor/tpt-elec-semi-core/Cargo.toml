@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics semiconductor crate"
+description = "Semiconductor fundamentals: material parameters, doping profiles, built-in potential"
+
+keywords = ["semiconductor", "bandgap", "doping", "intrinsic-carrier", "junction"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

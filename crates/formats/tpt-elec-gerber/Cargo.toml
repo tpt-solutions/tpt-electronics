@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-gerber"
-description = "Gerber RS-274X and Excellon drill file parser"
+description = "Gerber RS-274X and Excellon drill file parser for PCB fabrication data"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["gerber", "rs-274x", "excellon", "pcb", "parser"]
+categories = ["parser", "hardware-support"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

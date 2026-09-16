@@ -1,0 +1,34 @@
+# tpt-elec-geometry
+
+> PCB geometry primitives: traces, pads, drills, copper areas, and voxel meshes for FEM
+
+Part of [tpt-electronics](https://github.com/tpt-solutions/tpt-electronics) — a fully open-source, MIT-licensed multiphysics simulation engine.
+
+`pcb` · `geometry` · `voxel` · `mesh` · `trace`
+
+## Status
+
+✅ Stable · Part of the v0.1.0 release
+
+## Usage
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+tpt-elec-geometry = "0.1.0"
+```
+
+See the crate-level documentation for a tested quick-start example.
+
+## Testing
+
+```console
+$ cargo test -p tpt-elec-geometry
+```
+
+## License
+
+Licensed under either of [MIT](../../LICENSE-MIT) or [Apache-2.0](../../LICENSE-APACHE) at your option.
+
+Contributions require [DCO sign-off](../../CONTRIBUTING.md) (no CLA).

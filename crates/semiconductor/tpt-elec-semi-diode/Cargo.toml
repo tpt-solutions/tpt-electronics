@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics semiconductor crate"
+description = "Diode compact model: Shockley equation, junction capacitance, and reverse breakdown"
+
+keywords = ["diode", "shockley", "junction-capacitance", "series-resistance", "breakdown"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

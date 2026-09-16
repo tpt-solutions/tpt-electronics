@@ -390,7 +390,10 @@ impl SpiceNetlistParser {
                     .subckts
                     .get(&sub_name)
                     .ok_or_else(|| SpiceParseError {
-                        message: format!("unknown subckt {sub_name}"),
+                        message: format!(
+                            "unknown subckt '{sub_name}' (defined: {:?})",
+                            ctx.subckts.keys().collect::<Vec<_>>()
+                        ),
                     })?
                     .clone();
                 let external = &tokens[1..tokens.len() - 1];

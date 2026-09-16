@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-geometry"
-description = "PCB geometry primitives and voxel meshes"
+description = "PCB geometry primitives: traces, pads, drills, copper areas, and voxel meshes for FEM"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["pcb", "geometry", "voxel", "mesh", "trace"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

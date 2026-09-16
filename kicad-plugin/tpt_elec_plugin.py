@@ -52,6 +52,10 @@ class TptElecPlugin(pcbnew.ActionPlugin):
 
             # 2. Thermal sweep with a 0.5 W source at the board center.
             out_csv = os.path.join(tmp, "thermal.csv")
+                        power_csv = os.path.join(
+                os.path.dirname(str(board_path)),
+                os.path.splitext(os.path.basename(str(board_path)))[0] + ".power.csv"
+            )
             cmd = [
                 cli, "thermal",
                 "--gerber", gerbers[0],
@@ -59,6 +63,8 @@ class TptElecPlugin(pcbnew.ActionPlugin):
                 "--resolution-mm", "1.0",
                 "--h-conv", "10",
             ]
+            if os.path.exists(power_csv):
+                cmd.extend(["--power-map", power_csv])
             result = subprocess.run(cmd, capture_output=True, text=True)
             _log(result.stdout.strip() or result.stderr.strip())
 

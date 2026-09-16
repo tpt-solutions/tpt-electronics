@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics EMC crate"
+description = "Emissions prediction: trapezoidal clock envelope, small-loop radiation, conducted noise"
+
+keywords = ["emissions", "trapezoidal", "harmonics", "radiated", "conducted"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

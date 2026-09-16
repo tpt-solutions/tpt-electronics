@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-spice-noise"
-description = "Thermal, shot, and flicker noise source models"
+description = "Thermal, shot, and flicker noise source models for circuit simulation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["noise", "thermal", "shot", "flicker", "johnson"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

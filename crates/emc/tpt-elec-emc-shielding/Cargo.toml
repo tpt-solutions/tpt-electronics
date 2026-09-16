@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics EMC crate"
+description = "Shielding effectiveness: plane-wave SE = R + A + B with skin-depth models"
+
+keywords = ["shielding", "skin-depth", "plane-wave", "absorption", "reflection"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

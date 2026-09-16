@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics EMC crate"
+description = "EMC standards: CISPR 32 / FCC Part 15 limit lines and IEC 61000 severity tables"
+
+keywords = ["emc", "cispr32", "fcc", "limit-lines", "iec61000"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

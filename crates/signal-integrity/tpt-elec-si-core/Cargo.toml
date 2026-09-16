@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics signal integrity crate"
+description = "Transmission line models, S-parameters, and shared signal-integrity data structures"
+
+keywords = ["signal-integrity", "transmission-line", "s-parameters", "impedance", "reflection"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

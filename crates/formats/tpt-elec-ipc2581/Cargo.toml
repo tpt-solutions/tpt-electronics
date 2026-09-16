@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "IPC-2581-C XML parser"
+description = "IPC-2581-C XML parser for CAD-to-manufacturing data exchange"
+
+keywords = ["ipc2581", "xml", "pcb", "parser", "cad"]
+categories = ["parser", "hardware-support"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

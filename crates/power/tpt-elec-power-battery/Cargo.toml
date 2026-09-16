@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics power electronics crate"
+description = "Battery-aware power delivery: pack voltage windows, runtime, and topology selection"
+
+keywords = ["battery", "converter", "runtime", "dropout", "power-delivery"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

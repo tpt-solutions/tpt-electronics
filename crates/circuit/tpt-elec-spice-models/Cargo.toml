@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-spice-models"
-description = "Device compact models for SPICE simulation (MOSFET, diode, BJT, op-amp)"
+description = "Device compact models: MOSFET (Level 1-3), Shockley diode, Ebers-Moll BJT, op-amp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["spice", "mosfet", "diode", "bjt", "compact-model"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

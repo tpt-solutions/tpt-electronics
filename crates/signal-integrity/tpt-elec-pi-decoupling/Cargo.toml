@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Decoupling capacitor selection and placement helpers"
+description = "Decoupling capacitor selection, placement, and anti-resonance analysis"
+
+keywords = ["decoupling", "capacitor", "mounting", "anti-resonance", "power-integrity"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

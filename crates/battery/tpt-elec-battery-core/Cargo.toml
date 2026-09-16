@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Battery cell models and equivalent circuit models"
+description = "Battery cell models: chemistry tables, OCV curves, and Thevenin equivalent circuit"
+
+keywords = ["battery", "ecm", "ocv", "coulomb-counting", "lithium-ion"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

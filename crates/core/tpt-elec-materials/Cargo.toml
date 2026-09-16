@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-materials"
-description = "Material property database for electronics simulation"
+description = "Material property database with temperature-dependent conductivity, CTE, and dielectric properties"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["materials", "pcb", "fr4", "copper", "thermal-conductivity"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

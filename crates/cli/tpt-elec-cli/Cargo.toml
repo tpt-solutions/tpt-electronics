@@ -1,6 +1,8 @@
 [package]
 name = "tpt-elec-cli"
-description = "Command-line front end for tpt-electronics (thermal, impedance, DRC)"
+description = "Command-line front end: thermal, impedance, DRC, and report subcommands"
+keywords = ["cli", "pcb", "thermal", "impedance", "drc"]
+categories = ["command-line-utilities", "science"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,12 +11,12 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
 
 [[bin]]
 name = "tpt-elec-cli"
 path = "src/main.rs"
+
+
 
 [dependencies]
 tpt-elec-core = { workspace = true }

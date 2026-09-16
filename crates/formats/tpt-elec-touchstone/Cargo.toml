@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Touchstone S-parameter file parser"
+description = "Touchstone S-parameter file parser for RF and microwave measurements"
+
+keywords = ["touchstone", "s-parameters", "rf", "parser", "scattering"]
+categories = ["parser", "science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

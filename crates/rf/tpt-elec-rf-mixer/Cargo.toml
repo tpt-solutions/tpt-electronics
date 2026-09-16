@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics RF crate"
+description = "Mixer models: conversion gain, image rejection, IM3, and Friis cascades"
+
+keywords = ["mixer", "iip3", "image-rejection", "friis", "conversion"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

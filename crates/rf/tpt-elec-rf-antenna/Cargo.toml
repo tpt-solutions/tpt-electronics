@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics RF crate"
+description = "Antenna patterns, effective aperture, Friis link budgets, and FSPL"
+
+keywords = ["antenna", "dipole", "patch", "link-budget", "fspl"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

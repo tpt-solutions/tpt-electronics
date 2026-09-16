@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Near-end and far-end crosstalk models for coupled lines"
+description = "Near-end and far-end crosstalk models for coupled transmission lines"
+
+keywords = ["crosstalk", "next", "fext", "coupled-lines", "signal-integrity"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

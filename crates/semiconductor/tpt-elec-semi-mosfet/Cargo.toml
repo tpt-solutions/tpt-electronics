@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics semiconductor crate"
+description = "MOSFET compact models with gm/gds extraction and body-effect threshold"
+
+keywords = ["mosfet", "square-law", "transconductance", "compact-model", "device"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

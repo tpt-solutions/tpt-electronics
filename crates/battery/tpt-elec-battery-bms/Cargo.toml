@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "SOC estimation: coulomb counting, Kalman/EKF/UKF"
+description = "SOC estimation: coulomb counting, EKF over [SOC, V_rc], and sensor-fusion correction"
+
+keywords = ["bms", "soc", "kalman-filter", "coulomb-counting", "state-estimation"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

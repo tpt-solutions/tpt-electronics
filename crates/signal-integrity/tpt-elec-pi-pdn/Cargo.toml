@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Power delivery network impedance analysis"
+description = "Power delivery network impedance profiling and decoupling optimization"
+
+keywords = ["pdn", "power-integrity", "decoupling", "impedance", "target"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

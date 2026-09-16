@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics manufacturing crate"
+description = "IEEE 1149.1 boundary-scan chain modeling and test pattern generation"
+
+keywords = ["jtag", "ieee-1149", "boundary-scan", "test-pattern", "bscan"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

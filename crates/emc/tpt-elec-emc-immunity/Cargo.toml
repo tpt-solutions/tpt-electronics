@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics EMC crate"
+description = "Immunity test modeling: ESD, surge, EFT, and radiated/conducted RF against IEC levels"
+
+keywords = ["immunity", "esd", "surge", "eft", "iec61000"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

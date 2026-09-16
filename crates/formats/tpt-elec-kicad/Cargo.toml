@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-kicad"
-description = "KiCad .kicad_pcb and netlist parser"
+description = "KiCad .kicad_pcb S-expression and netlist parser for PCB design files"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["kicad", "pcb", "parser", "s-expression", "netlist"]
+categories = ["parser", "hardware-support"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

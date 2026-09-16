@@ -121,10 +121,23 @@ let ac = analyzer.ac_analysis(1.0, 1.0e9, 10).unwrap();
 
 ## CLI
 
+`tpt-elec-cli` exposes four subcommands: `thermal`, `impedance`, `drc`, and
+`report`.
+
 ```console
-$ tpt-elec-cli thermal --gerber top.gtl --stackup stackup.json \
-    --power-map power.csv --out thermal.csv
+$ tpt-elec-cli thermal --gerber top.gtl --power-map power.csv \
+    --out thermal.csv --format csv --resolution-mm 0.5 \
+    --thickness-mm 1.6 --h-conv 10 --ambient-c 25
+
+$ tpt-elec-cli impedance --width-mm 0.3 --height-mm 1.6 --er 4.4 \
+    --suggest --target 50
+
+$ tpt-elec-cli drc --kicad board.kicad_pcb --min-width-um 150
+
+$ tpt-elec-cli report --out thermal.csv
 ```
+
+Run `tpt-elec-cli help` for the full flag reference.
 
 ## Governance
 

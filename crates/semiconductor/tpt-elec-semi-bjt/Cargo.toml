@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics semiconductor crate"
+description = "BJT Ebers-Moll transport model with active/saturation/cutoff regions"
+
+keywords = ["bjt", "ebers-moll", "current-gain", "transport-model", "bipolar"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

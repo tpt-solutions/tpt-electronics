@@ -1,6 +1,8 @@
 [package]
 name = "tpt-elec-wasm"
-description = "WebAssembly bindings for tpt-electronics (thermal + impedance)"
+description = "WebAssembly bindings for browser-based PCB thermal and impedance simulation"
+keywords = ["wasm", "webassembly", "pcb", "thermal", "browser"]
+categories = ["wasm", "science"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,11 +11,11 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+
 
 [dependencies]
 tpt-elec-core = { workspace = true }

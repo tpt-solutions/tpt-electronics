@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics RF crate"
+description = "Smith chart mathematics and ABCD-validated L/pi impedance matching network synthesis"
+
+keywords = ["smith-chart", "matching", "l-network", "pi-network", "rf"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

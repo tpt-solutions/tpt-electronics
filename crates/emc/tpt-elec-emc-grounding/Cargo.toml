@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics EMC crate"
+description = "Grounding and return-path modeling: plane impedance, slot crossings, loop coupling"
+
+keywords = ["grounding", "return-path", "slot-coupling", "ground-loop", "impedance"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

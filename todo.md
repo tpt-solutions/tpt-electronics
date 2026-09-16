@@ -346,9 +346,9 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Update README crate status table (✅ Stable / 🚧 Alpha / 📋 Planned) as crates land
 
 ## Deferred (carried forward)
-- [ ] Unified HTML report (`tpt-elec-cli report`)
-- [ ] Watch mode (`tpt-elec-cli thermal --watch`)
-- [ ] Better parse errors (span info, suggestions)
+- [x] Unified HTML report (`tpt-elec-cli report` with SVG heat strip)
+- [x] Watch mode (`tpt-elec-cli thermal --watch` with file-signature polling)
+- [x] Better parse errors (subckt suggestions; line-number infrastructure in place)
 - [ ] Chebyshev-II / Elliptic filter synthesis (C2 response-based design planned; Elliptic needs Cauer tables)
 - [x] Band-stop ladder transformation (series parallel-LC series arm, series-LC shunt arm; ESR-damped)
 - [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)

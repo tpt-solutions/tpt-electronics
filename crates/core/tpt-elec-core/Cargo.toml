@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-core"
-description = "Core domain types, units, and numeric kernels for tpt-electronics"
+description = "Core domain types, units, linear algebra, and numeric kernels for tpt-electronics"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["pcb", "electronics", "simulation", "linalg", "types"]
+categories = ["science", "simulation"]
 
 [dependencies]
 

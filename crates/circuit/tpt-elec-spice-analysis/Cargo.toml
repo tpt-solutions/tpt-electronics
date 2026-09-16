@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-spice-analysis"
-description = "SPICE analyses: DC operating point, AC sweep, transient, noise"
+description = "SPICE analysis algorithms: DC operating point, AC sweep, transient, and noise"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["spice", "dc", "ac", "transient", "newton-raphson"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

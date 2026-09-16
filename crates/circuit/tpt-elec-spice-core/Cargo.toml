@@ -1,6 +1,6 @@
 [package]
 name = "tpt-elec-spice-core"
-description = "Circuit graph, MNA formulation, and analysis kinds for SPICE simulation"
+description = "Circuit graph, Modified Nodal Analysis (MNA) formulation, and analysis descriptors"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
+
+keywords = ["spice", "mna", "circuit", "nodal-analysis", "simulation"]
+categories = ["science", "simulation"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

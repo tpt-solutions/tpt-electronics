@@ -8,9 +8,10 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 authors.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "tpt-electronics manufacturing crate"
+description = "Yield prediction: Poisson, Murphy, and Seeds models with composite board yield"
+
+keywords = ["yield", "poisson", "murphy", "seeds", "manufacturing"]
+categories = ["science"]
 
 [dependencies]
 tpt-elec-core = { workspace = true }

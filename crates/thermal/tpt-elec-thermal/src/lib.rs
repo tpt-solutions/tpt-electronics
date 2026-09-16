@@ -847,6 +847,34 @@ mod tests {
         let raw = include_str!("../../../../test-data/golden/thermal/simple_resistor_board.json");
         let golden: Golden = serde_json::from_str(raw).expect("golden file parses");
         let tol = golden.tolerance_c;
+        let regen = std::env::var("TPT_REGEN_GOLDENS").is_ok();
+        if regen {
+            let out = format!(
+                "{{
+  \"case\": \"simple_resistor_board\",
+  \"description\": \"10-cell 1D copper column (1x1x10 mm), ends pinned at 100/0 degC; lumped case: 1 mm^3 copper cell, 1 W, h=1000 W/m2K, 25 degC ambient\",
+  \"model\": \"tpt-elec-thermal\",
+  \"values\": {{
+    \"slab_max_temp_c\": {:.1},
+    \"slab_center_temp_c\": {:.4},
+    \"lumped_convection_temp_c\": {:.1}
+  }},
+  \"tolerance_c\": {:.1}
+}}",
+                golden.values["slab_max_temp_c"],
+                golden.values["slab_center_temp_c"],
+                golden.values["lumped_convection_temp_c"],
+                golden.tolerance_c
+            );
+            let _ = std::fs::write(
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../test-data/golden/thermal/simple_resistor_board.json"
+                ),
+                &out,
+            );
+            return;
+        }
 
         // Case 1: 1D copper slab with pinned ends.
         let grid = column_grid(10);
