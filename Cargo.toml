@@ -26,7 +26,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/tpt-solutions/tpt-electronics"
 homepage = "https://github.com/tpt-solutions/tpt-electronics"
 documentation = "https://docs.rs/tpt-elec-core"
-authors = ["TPT Solutions <open@tpt.solutions>"]
+authors = ["TPT Solutions"]
 keywords = ["pcb", "thermal", "spice", "signal-integrity", "simulation"]
 categories = ["science", "simulation"]
 

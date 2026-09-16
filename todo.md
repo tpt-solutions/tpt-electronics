@@ -399,3 +399,37 @@ Found in the platform review; each verified against the code.
 - [x] **One narrated end-to-end example**: KiCad project → export → thermal → report, written as a tutorial (current examples assume you know which crate to reach for).
 - [x] **Per-crate doctested quickstarts**: the first snippet a new user pastes must be guaranteed to compile.
 - [x] **"Which crate do I need?" decision table** at the top of docs/book.
+
+## Platform Review 2026-09-16 — CLI domain coverage
+
+- [ ] **`tpt-elec-cli spice`**: run a SPICE netlist (DC/AC/transient/noise) through `tpt-elec-spice-analysis` and print/export results.
+- [ ] **`tpt-elec-cli rf`**: matching-network synthesis and filter synthesis (`tpt-elec-rf-core`/`tpt-elec-rf-filters`) from CLI args or a spec file.
+- [ ] **`tpt-elec-cli power`**: converter design/analysis (`tpt-elec-power-core` + `tpt-elec-power-control`) — e.g. compensator design, loss estimate.
+- [ ] **`tpt-elec-cli emc`**: radiated/conducted emissions prediction (`tpt-elec-emc-emissions`) against a selected `EmcStandard`.
+- [ ] **`tpt-elec-cli battery`**: SOC estimation / thermal-runaway propagation check (`tpt-elec-battery-bms` + `tpt-elec-battery-thermal`).
+- [ ] **Unit tests for `tpt-elec-cli`**: currently the only crate in the workspace with zero `#[test]`s — cover arg parsing and command dispatch for every subcommand above plus the existing four.
+
+## Platform Review 2026-09-16 — Adoption & docs
+
+- [ ] **README badges**: CI, crates.io (once published), docs.rs, license.
+- [ ] **README quick-start walkthrough**: an actual `cargo new` / `cargo add` sequence a newcomer can paste, not just isolated code snippets assuming crates are already wired up.
+- [ ] **Link hosted docs from README**: `docs.yml` already builds/deploys rustdoc + mdBook — the README never links to it.
+- [ ] **Mention the `cargo generate` template in the README**: `template/` exists and works but is undiscoverable from the project root.
+- [ ] **`examples/README.md` index**: one page listing all 7 examples and what each demonstrates, with the `cargo run -p example-*` invocation for each.
+- [ ] **Document `cargo install --path crates/cli/tpt-elec-cli` and `--help` output in the main README** (currently only mentioned in `kicad-plugin/README.md`).
+- [ ] **Flesh out thin `docs/book` chapters**: several (e.g. `power.md`, `rf.md`) are ~14 lines of scaffolding, not real content.
+- [ ] **Remove or repurpose empty `docs/rfc/` and `docs/api/` directories** — RFCs already live in top-level `rfcs/`; these look like dead scaffolding.
+- [ ] **Publish the VS Code extension to the Marketplace** — currently a dev-only scaffold, limiting real-world reach.
+
+## Platform Review 2026-09-16 — Innovation
+
+- [ ] **Python bindings (pyo3)** for core simulation crates (thermal, SPICE, RF) to enable scripted parametric sweeps/optimization from notebooks — no scripting path exists today.
+- [ ] **Parametric sweep / optimization CLI subcommand** (e.g. `tpt-elec-cli sweep --param R1=1k..10k --objective thermal_max`) using the Newton-Raphson optimizer approach already used internally.
+- [ ] **Expand `tpt-elec-wasm` bindings** beyond thermal + impedance to SPICE transient and eye-diagram/PDN, so `demo/` becomes a full interactive browser playground.
+- [ ] **Historical benchmark dashboard**: wire the existing Criterion CI artifacts (`benchmark.yml`) into a tracked/visualized trend (e.g. `github-action-benchmark`) instead of per-run artifacts only.
+- [ ] **Deepen KiCad plugin ↔ VS Code extension integration**: share one local backend instead of shelling out to the CLI per call; surface DRC/thermal/SI checks live inside KiCad.
+
+## Platform Review 2026-09-16 — Cleanup
+
+- [ ] **Fix generic placeholder crate descriptions** in `Cargo.toml` across rf/power/semiconductor/emc crates (e.g. "tpt-electronics RF crate") — hurts crates.io/docs.rs presentation once published.
+- [ ] **Verify the transmission-line stub** in `crates/rf/tpt-elec-rf-core/src/lib.rs:128` is a type placeholder only, not dead code on a hot path; document or remove.
