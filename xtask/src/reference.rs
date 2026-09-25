@@ -159,38 +159,41 @@ pub fn cases() -> Vec<Case> {
             basis: "parameters-only fixture; the test derives the analytic reference itself",
             leaves: Vec::new(),
         },
+        Case {
+            name: "ddr4_impedance",
+            path: "test-data/golden/si/ddr4_impedance.json",
+            basis: "independent Hammerstad-Jensen implementation in `refmodel`",
+            leaves: crate::refmodel::ddr4_impedance(),
+        },
+        Case {
+            name: "pcie_gen3_eye",
+            path: "test-data/golden/si/pcie_gen3_eye.json",
+            basis: "independent PRBS-7 + first-order channel + eye metrics in `refmodel`",
+            leaves: crate::refmodel::pcie_gen3_eye(),
+        },
     ]
 }
 
-/// Goldens that exist but are **not** independently regenerable.
-///
-/// These hold values produced by a full simulation (eye diagram, SPICE
-/// transient) or a rounded design target rather than a closed form. The tool
-/// reports them so a reviewer knows they were considered, and never rewrites
-/// them.
+/// Goldens that hold **no derived numeric value**, so there is nothing to
+/// regenerate. They are inputs plus pass criteria, verified in-crate.
+pub fn specification_only() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![(
+        "l_network_match",
+        "test-data/golden/rf/l_network_match.json",
+        "max_gamma_magnitude is a pass criterion, not a measurement; |Gamma| ~ 0 at f0 \
+         is an exact property of a lossless L-section",
+    )]
+}
+
+/// Goldens that are genuinely blocked and **never** rewritten.
 pub fn simulation_derived() -> Vec<(&'static str, &'static str, &'static str)> {
-    vec![
-        (
-            "ddr4_impedance",
-            "test-data/golden/si/ddr4_impedance.json",
-            "expected_z0_ohm is a rounded 55 Ohm design target with a 3 Ohm window",
-        ),
-        (
-            "l_network_match",
-            "test-data/golden/rf/l_network_match.json",
-            "holds only a |Gamma| bound plus prose; values are asserted in-crate",
-        ),
-        (
-            "pcie_gen3_eye",
-            "test-data/golden/si/pcie_gen3_eye.json",
-            "eye height/width/jitter come from the PRBS + channel simulation",
-        ),
-        (
-            "buck_converter_transient",
-            "test-data/golden/spice/buck_converter_transient.json",
-            "startup waveform comes from the SPICE transient solver",
-        ),
-    ]
+    vec![(
+        "buck_converter_transient",
+        "test-data/golden/spice/buck_converter_transient.json",
+        "startup waveform is a nonlinear SPICE transient; needs a cross-check against an \
+         external solver (ngspice/LTspice), which a second implementation of our own \
+         model cannot provide",
+    )]
 }
 
 #[cfg(test)]
@@ -255,13 +258,21 @@ mod tests {
 
     #[test]
     fn every_golden_is_classified() {
-        // Guards against a new golden being added without deciding how to
-        // treat it.
+        // Guards against a new golden appearing without deciding how to treat it.
         let known: Vec<&str> = cases()
             .iter()
             .map(|c| c.name)
+            .chain(specification_only().iter().map(|(n, _, _)| *n))
             .chain(simulation_derived().iter().map(|(n, _, _)| *n))
             .collect();
         assert_eq!(known.len(), 7, "expected 7 goldens, classified: {known:?}");
+    }
+
+    #[test]
+    fn l_network_match_series_c_is_analytic() {
+        // C = 1/(2*pi*f*X) for the fixture's 25 + j15 ohm load at 6 GHz.
+        let c = crate::refmodel::l_network_match_series_c();
+        // The fixture's prose records "series C 1.768e-12 F".
+        assert!((c - 1.768e-12).abs() < 1e-15, "{c}");
     }
 }

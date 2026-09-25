@@ -25,6 +25,7 @@
 
 mod json_edit;
 mod reference;
+mod refmodel;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -137,9 +138,13 @@ fn run_regen_goldens(args: &[String]) -> Result<ExitCode, String> {
     let cases = reference::cases();
 
     if opts.list {
-        println!("Regenerable (independent closed-form reference):");
+        println!("Regenerable (independent reference):");
         for c in &cases {
             println!("  {:<28} {}", c.name, c.basis);
+        }
+        println!("\nSpecification only (no derived numeric value):");
+        for (name, _path, why) in reference::specification_only() {
+            println!("  {:<28} {}", name, why);
         }
         println!("\nSimulation-derived (never rewritten by this tool):");
         for (name, _path, why) in reference::simulation_derived() {

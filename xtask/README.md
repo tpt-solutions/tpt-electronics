@@ -35,19 +35,36 @@ reason:
 
 ### Coverage
 
-`--list` reports all seven fixtures. Three are regenerated from closed forms;
-the other four hold simulation output (eye diagram, SPICE startup) or a
-rounded design target, so they are **never** rewritten:
+`--list` reports all seven fixtures. Five are checked against an independent
+reference; one holds no derived value; one is genuinely blocked.
 
 | Fixture | Treatment |
 |---|---|
-| `simple_resistor_board` | analytic — regenerated |
-| `butterworth_filter` | analytic — regenerated |
+| `simple_resistor_board` | closed form (conduction, `T∞ + P/hA`) — regenerated |
+| `butterworth_filter` | closed form (prototype `g_k`, `\|H\|² = 1/(1+(f/fc)²ⁿ)`) — regenerated |
+| `ddr4_impedance` | independent Hammerstad-Jensen implementation — regenerated |
+| `pcie_gen3_eye` | independent PRBS-7 + channel + eye metrics — regenerated |
 | `rc_lowpass_ac` | parameters only; the test derives the reference itself |
-| `ddr4_impedance` | rounded 55 Ω design target — never rewritten |
-| `l_network_match` | `\|Γ\|` bound + prose — never rewritten |
-| `pcie_gen3_eye` | simulation output — never rewritten |
-| `buck_converter_transient` | simulation output — never rewritten |
+| `l_network_match` | specification only — nothing to regenerate |
+| `buck_converter_transient` | **blocked** — needs an external solver |
+
+### Two grades of independence
+
+Worth being precise about, because the guarantees differ:
+
+- **Closed forms** (`simple_resistor_board`, `butterworth_filter`): the
+  reference is a short identity stated in the module docs. Anyone can check it
+  by hand, so it catches both implementation drift *and* a wrong model.
+- **Independent reimplementations** (`ddr4_impedance`, `pcie_gen3_eye`, in
+  [`refmodel`](src/refmodel.rs)): a second implementation of the same published
+  model. This catches implementation drift and transcription errors — the
+  common bug class — but **not** a shared misunderstanding of the model, since
+  both sides implement the same equations.
+
+The buck converter is the one fixture where a second implementation of our own
+model proves nothing: reproducing our own solver tells you only that it is
+deterministic. It needs a genuinely different engine (ngspice/LTspice) run on
+the same netlist, which is why it stays blocked.
 
 ### Tolerances
 

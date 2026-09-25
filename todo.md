@@ -353,16 +353,37 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Watch mode (`tpt-elec-cli thermal --watch` with file-signature polling)
 - [x] Better parse errors (subckt suggestions; line-number infrastructure in place)
 - [x] Chebyshev-II filter synthesis (response-based pole/zero design, even orders 2–12)
-- [ ] Elliptic (Cauer) filter synthesis — still needs Cauer g-tables or full elliptic-function pole extraction (rfcs/0004).
-      Attempted via Zolotarev fixed-point iteration: the characteristic function
-      `K(s)` reproduces the published 5-pole reference, and the achievable
-      stopband limits match the classic minimum-order tables (order 3 / 1 dB →
-      ~54 dB, order 5 / 1 dB → ~102 dB), but the resulting transfer function
-      showed no passband equiripple, so the implementation was reverted rather
-      than shipped unverified. Note a plain series/shunt ladder cannot carry
-      finite transmission zeros at all (`S21 = 2/(A+B+C+D)` is a polynomial
-      ratio), so this needs a constant-resistance lattice realisation or a
-      response-based path verified against a trusted reference.
+- [ ] Elliptic (Cauer) filter synthesis. Chosen approach: a **constant-resistance
+      lattice** with resonant arms. The crate already has `SeriesParallelLc` /
+      `ShuntParallelLc` / `ShuntSeriesLc` and evaluates them in `abcd_s21_s11`, so an
+      earlier claim that a plain series/shunt ladder cannot carry transmission
+      zeros was WRONG — that holds only for polynomial ABCD elements, and a
+      resonant series arm blocks at its pole to give a real zero.
+
+      Three attempts, all reverted rather than shipped unverified. Findings, in order
+      of how far it now gets:
+      * DONE+VERIFIED: the Zolotarev fixed-point iteration reproduces the published
+        5-pole `K(s)` to ~5 sig figs, and it converges cleanly (order 2 -> 0.781114,
+        order 3 -> 0.908).
+      * ROOT CAUSE FOUND AND FIXED: `gmagnitude_db` computed `|jw - z|` as
+        `sqrt((w - z.re)^2 + z.im^2)`, treating the zero as if it were real. The
+        correct distance is `sqrt(z.re^2 + (w - z.im)^2)`. This was present in
+        every attempt and is why the passband never equirippled. With it fixed the
+        `|G| = 1/sqrt(1 + eps^2 K(jw)^2)` identity test PASSES.
+      * DC gain is NOT always 1: the identity gives `1/sqrt(1 + eps^2 K(0)^2)`, which is
+        0 dB for odd orders (DC is a ripple peak) and `-Rp` for even ones (DC is
+        a ripple minimum). Hard-coding unity gain breaks even orders.
+      * REMAINING: the fixed point is not landing on the true equiripple solution.
+        Order 3 measures a 4.2 dB passband ripple when 1 dB was asked for (its
+        passband `|K|` peaks at ~1.62 instead of 1), and the even-order branch is
+        clearly broken (order 4 gives -44 dB at xi = 1.05, i.e. no transition band).
+        Suspect the `reflection_zeros` extraction by parity — `num(s)` is purely
+        even for even n and purely odd for odd n, so the odd-order branch reads the
+        odd part and the even-order branch the even part, and the even-order one
+        has not been validated at all. Next step: validate `reflection_zeros`
+        against a hand-computed fixed point per parity before touching anything
+        else, then re-run the identity + equiripple + stopband gates before any
+        lattice work.
 - [x] Band-stop ladder transformation (series parallel-LC series arm, series-LC shunt arm; ESR-damped)
 - [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)
 - [x] BSIM3/BSIM4 short-channel subsets (mobility degradation + velocity saturation + CLM) and EKV charge-sheet law; full Berkeley parameter sets deferred
@@ -468,10 +489,16 @@ Found in the platform review; each verified against the code.
   check cannot be self-confirming. Check is the default and is wired into CI;
   `--write` requires explicit intent, and simulation-derived fixtures are never
   rewritten. Removes the no-op `TPT_REGEN_GOLDENS` block in the thermal golden test.
-- [x] `--list` classifies all seven fixtures (3 regenerable, 4 simulation-derived),
-  and a test fails if a new golden appears unclassified.
-- [ ] Extend `regen-goldens` to the four simulation-derived fixtures once a trusted
-  independent source exists for each (they cannot be regenerated from the code itself).
+- [x] `--list` classifies all seven fixtures (5 regenerable, 1 specification-only,
+  1 blocked), and a test fails if a new golden appears unclassified.
+- [x] Extend `regen-goldens` to the fixtures previously called "simulation-derived". The
+  classification was too pessimistic: `ddr4_impedance` and `pcie_gen3_eye` are fully
+  determined by their own parameters, so `xtask/src/refmodel.rs` reimplements
+  Hammerstad-Jensen and the PRBS-7 + channel + eye metrics independently;
+  `l_network_match` holds no derived value at all (it is a pass criterion, and
+  |Gamma| ~ 0 is exact for a lossless L-section). Only `buck_converter_transient`
+  stays blocked: a second implementation of our own solver would only prove it is
+  deterministic, so it needs a cross-check against ngspice/LTspice.
 
 ## Remaining work
 
@@ -488,12 +515,14 @@ tick those, not these.
 - Elliptic (Cauer) filter synthesis. Needs a constant-resistance lattice
   realisation (a plain series/shunt ladder cannot carry finite transmission zeros)
   or a response-based design validated against a trusted reference.
-- Extend `regen-goldens` to the simulation-derived fixtures. Needs an authority
-  independent of this code for each case.
+- Cross-check `buck_converter_transient` against an external SPICE solver
+  (ngspice/LTspice). This is the last fixture that a second
+  implementation of our own solver cannot cover.
 
 **Actionable now:**
-- `.pyi` type stubs for the Python API.
-- (none — the two open items, `.pyi` stubs and the SPICE bindings, are now done.)
+- (none — the actionable items, `.pyi` stubs, the SPICE bindings and the golden
+  coverage, are all done.)
+
 **Also worth fixing, found while adding the above:**
 - [x] **CI MSRV job was red on `master` — now green.** Three separate causes, not one:
       `tpt-elec-core` used float arithmetic in `const fn` (needs 1.82) — dropped `const` from
