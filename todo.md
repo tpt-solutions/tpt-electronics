@@ -21,7 +21,7 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] crates/{core,formats,thermal,circuit,signal-integrity,rf,power,semiconductor,emc,battery,manufacturing}/ scaffolding (spec §4)
 - [x] examples/, test-data/{gerber,kicad,odbpp,ipc2581,touchstone,spice,golden}/, benches/, docs/{book,rfc,api}/, rfcs/ directory scaffolding
 - [x] Source file header template (SPDX-License-Identifier: MIT OR Apache-2.0) — docs/templates/source-header.rs + headers on every source file
-- [x] Document DCO sign-off requirement (no CLA), RFC process, 6-week release cadence (spec §9)
+- [x] Document contribution policy (issues-only: no PRs, no CLA, no DCO), RFC process, 6-week release cadence (spec §9)
 
 ## Phase 1: Foundation
 ### tpt-elec-core
@@ -345,7 +345,7 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] PCIe CEM, DDR4/5 JEDEC, USB-IF signal integrity validation (normalized masks)
 - [x] Maintain golden test-data (test-data/golden) as each domain lands
 - [x] Criterion benches for thermal steady-state, Joule heating, SPICE transient, SI eye diagram (benches/)
-- [x] RFC process for new crates/major API changes (rfcs/0001–0005 written as Implemented), DCO sign-off on all PRs (CI check + CONTRIBUTING.md)
+- [x] RFC process for new crates/major API changes (rfcs/0001–0005 written as Implemented); contributions are issues-only — the PR template was deleted and the DCO CI check removed
 - [x] Update README crate status table (✅ Stable / 🚧 Alpha / 📋 Planned) as crates land
 
 ## Deferred (carried forward)

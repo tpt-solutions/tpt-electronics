@@ -22,7 +22,7 @@ WASM check: `cargo check -p tpt-elec-wasm --target wasm32-unknown-unknown`
 
 ## Contribution rules (enforced by CI)
 
-- **DCO sign-off:** every commit needs `Signed-off-by`. Use `git commit -s`. PRs without it are rejected.
+- **No CLA, no DCO, no PRs:** contributions are not accepted. The repo is dual-licensed `MIT OR Apache-2.0`, maintained by its author; external feedback happens through GitHub issues (see `CONTRIBUTING.md`). CI does not check commit sign-off.
 - **SPDX header:** every new Rust source file starts with `// SPDX-License-Identifier: MIT OR Apache-2.0` (template: `docs/templates/source-header.rs`).
 - **License chain:** `MIT OR Apache-2.0` only. `cargo-deny` (`deny.toml`) rejects GPL/LGPL crates and bans `elmer-fem`, `openfoam`, `gmsh`, `netgen`, `ngspice-sys` by name.
 

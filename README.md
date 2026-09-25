@@ -172,7 +172,7 @@ Run `tpt-elec-cli help` for the full flag reference.
 ## Governance
 
 - **License:** MIT OR Apache-2.0 (dual)
-- **Contributions:** MIT OR Apache-2.0, CLA-free via DCO (`git commit -s`)
+- **Contributions:** pull requests are not accepted — please file an issue (see [CONTRIBUTING.md](CONTRIBUTING.md))
 - **Governance:** Benevolent Dictator + [RFC process](rfcs/)
 - **Releases:** SemVer, 6-week minor cadence
 - **Security:** [SECURITY.md](SECURITY.md), private disclosure

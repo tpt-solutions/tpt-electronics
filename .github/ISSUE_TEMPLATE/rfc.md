@@ -1,6 +1,6 @@
 ---
 name: RFC
-about: Propose a new crate or a major API change (see CONTRIBUTING.md)
+about: Propose a new crate or a major API change as an issue (see CONTRIBUTING.md)
 title: "[rfc] "
 labels: rfc
 assignees: ""

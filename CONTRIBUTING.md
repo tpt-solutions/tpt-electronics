@@ -1,78 +1,55 @@
 # Contributing to tpt-electronics
 
-Thank you for helping build a fully open-source electronics simulation engine.
-This project is **CLA-free** — contributions are accepted under the
-[Developer Certificate of Origin](https://developercertificate.org/) (DCO).
+**This project does not accept pull requests.** The repository is maintained
+by its author; external code changes are not merged. There is no CLA process and
+no Developer Certificate of Origin (DCO) sign-off requirement, because there is
+no contribution queue to sign off on.
 
-## Developer Certificate of Origin
+The supported way to help is to **open an issue**. Issues are how bugs get
+reported, how features get requested, and how design changes get discussed.
 
-Every commit must be signed off. Use `git commit -s` (or add the trailer
-manually):
+## Reporting a bug
 
-```text
-Signed-off-by: Jane Doe <jane.doe@example.com>
-```
+Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md). The most
+useful reports include:
 
-The sign-off certifies that you wrote the patch or have the right to pass it on
-under the project's `MIT OR Apache-2.0` license. CI rejects PRs whose commits
-lack a `Signed-off-by` trailer.
+- The exact command, test, or API call that reproduces the problem.
+- The input data (a minimal Gerber/Excellon file, netlist, Touchstone fixture,
+  or a few lines of code) — see `test-data/` for the formats already supported.
+- Your platform, toolchain version (`rustc --version`), and crate version.
+- Expected versus actual output, including the full error text.
 
-## Contribution workflow
+Security problems are **not** public issues — see [SECURITY.md](SECURITY.md).
 
-1. Fork the repository.
-2. Create a feature branch: `feature/my-new-crate`.
-3. Write code + tests (every public API needs rustdoc and an SPDX header).
-4. Run the local gate:
+## Requesting a feature
 
-   ```console
-   $ cargo fmt --all
-   $ cargo clippy --workspace --all-targets
-   $ cargo test --workspace
-   $ cargo deny check licenses
-   ```
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md).
+Describe the physics or engineering problem you are trying to solve and the
+accuracy or throughput you need, rather than a specific API shape. That makes it
+much easier to judge whether the feature belongs in an existing crate or needs a
+new one.
 
-5. Submit the PR with DCO sign-off.
-6. RFC discussion for new crates (below).
-7. Merge after 2 approvals.
+## Proposing a design change
 
-## Source file header
+New crates, new public APIs, and breaking changes go through the RFC process
+using the [RFC template](.github/ISSUE_TEMPLATE/rfc.md). Write the RFC as an
+issue; there is no PR to attach it to. RFCs live in `rfcs/` once accepted and
+move through `Draft → Accepted → Implemented → Final`, with the maintainer as
+tie-breaker.
 
-Every Rust source file starts with the SPDX header (copy
-`docs/templates/source-header.rs`):
+## What is not accepted
 
-```rust
-// SPDX-License-Identifier: MIT OR Apache-2.0
-```
-
-## RFC process
-
-New crates, new public APIs on existing crates, or breaking changes require an
-RFC in `rfcs/` (template: `.github/ISSUE_TEMPLATE/rfc.md`):
-
-```text
-rfcs/0001-thermal-fem.md
-rfcs/0002-spice-mna.md
-rfcs/0003-si-eye-diagram.md
-```
-
-RFCs move through `Draft → Accepted → Implemented → Final`. Acceptance requires
-consensus with the Benevolent Dictator as tie-breaker.
-
-## Release cadence
-
-- **Minor releases:** every 6 weeks (feature train).
-- **Patch releases:** as needed for regressions/security.
-- **Major releases:** when breaking changes accumulate; each is preceded by a
-  deprecation window of at least one minor release.
-
-Versioning is strict SemVer. The CHANGELOG is updated with every PR.
+- Pull requests, forks submitting patches, or patch emails.
+- CLA requests or sign-off enforcement. There is no CLA and never will be one.
 
 ## Code of conduct
 
-See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Be excellent to each other.
+Participation in issues and discussions is governed by
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Be excellent to each other.
 
-## Reporting issues
+## License
 
-- Bugs: use the bug report template.
-- Security: **do not** open public issues — see [SECURITY.md](SECURITY.md).
-- Ideas: feature request template or an RFC for substantial designs.
+The source is dual-licensed under `MIT OR Apache-2.0`. The absence of a
+contribution process does not change the license: the code remains open source
+and reusable under those terms.
+

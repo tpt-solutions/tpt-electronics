@@ -64,27 +64,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace
 
-  dco:
-    name: DCO sign-off
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Require Signed-off-by on all commits
-        run: |
-          missing=$(git log --format='%H %s' origin/${{ github.base_ref }}..HEAD \
-            | while read -r hash msg; do
-                if ! git log -1 --format='%(trailers:key=Signed-off-by)' "$hash" | grep -q '.'; then
-                  echo "$hash"
-                fi
-              done)
-          if [ -n "$missing" ]; then
-            echo "Commits missing DCO sign-off: $missing"
-            exit 1
-          fi
-
   wasm:
     name: WASM build check
     runs-on: ubuntu-latest

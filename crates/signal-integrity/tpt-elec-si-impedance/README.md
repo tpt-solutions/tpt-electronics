@@ -31,4 +31,3 @@ $ cargo test -p tpt-elec-si-impedance
 
 Licensed under either of [MIT](../../LICENSE-MIT) or [Apache-2.0](../../LICENSE-APACHE) at your option.
 
-Contributions require [DCO sign-off](../../CONTRIBUTING.md) (no CLA).

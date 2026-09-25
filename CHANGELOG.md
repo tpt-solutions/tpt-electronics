@@ -7,13 +7,21 @@ Minor releases occur on a 6-week cadence.
 
 ## [Unreleased]
 
+### Changed
+
+- Contribution policy is now **issues-only**: pull requests are not accepted, and
+  the `dco` job was removed from `.github/workflows/ci.yml`. `.github/PULL_REQUEST_TEMPLATE.md`
+  is deleted, `CONTRIBUTING.md` is now a bug-report / feature-request / RFC guide,
+  and the per-crate READMEs no longer carry a contributions line. There is no CLA
+  and no DCO sign-off requirement. The code remains `MIT OR Apache-2.0`.
+
 ### Added
 
 #### Phase 0 — Repository scaffolding
 - Cargo workspace (`resolver = "2"`) with shared `[workspace.package]`,
   `[workspace.dependencies]`, and workspace lints (`unsafe_code = "forbid"`).
 - Dual licensing: `LICENSE-MIT` + `LICENSE-APACHE` (MIT OR Apache-2.0).
-- Community files: README, CONTRIBUTING (DCO, no CLA), SECURITY,
+- Community files: README, CONTRIBUTING (issues-only, no CLA, no DCO), SECURITY,
   CODE_OF_CONDUCT, CHANGELOG.
 - License enforcement via `cargo-deny` (`deny.toml`).
 - CI: fmt / clippy / test, cargo-deny licenses, criterion benchmarks,
