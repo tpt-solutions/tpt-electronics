@@ -54,7 +54,7 @@ impl Complex {
     }
 
     /// Conjugate.
-    pub const fn conj(&self) -> Self {
+    pub fn conj(&self) -> Self {
         Self {
             re: self.re,
             im: -self.im,
@@ -62,7 +62,7 @@ impl Complex {
     }
 
     /// Squared magnitude.
-    pub const fn norm_sqr(&self) -> f64 {
+    pub fn norm_sqr(&self) -> f64 {
         self.re * self.re + self.im * self.im
     }
 

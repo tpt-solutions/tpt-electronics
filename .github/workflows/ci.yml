@@ -46,6 +46,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  goldens:
+    name: Golden fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Check-only. The goldens are verified against independent closed-form
+      # references and never rewritten, so this job cannot bless a regression
+      # in the code it is checking.
+      - name: Check golden fixtures against their analytic references
+        run: cargo run -p xtask -- regen-goldens
+
   deny-bans:
     name: cargo-deny (bans + sources)
     runs-on: ubuntu-latest
@@ -62,7 +75,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.75
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace
+      # `tpt-elec-wasm` is excluded on purpose: its blocker is a wasm-bindgen
+      # *build*-dependency that needs rustc 1.77, which says nothing about our
+      # own code. The wasm target is already covered by the `wasm` job below on
+      # stable, which is where that risk actually lives.
+      - name: Check the workspace on the declared MSRV
+        run: cargo check --workspace --exclude tpt-elec-wasm
 
   wasm:
     name: WASM build check

@@ -1,0 +1,28 @@
+[package]
+name = "xtask"
+description = "Workspace automation tasks for tpt-electronics (golden-file regeneration)"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+# `preserve_order` keeps object keys in their original order so a rewrite
+# produces a minimal diff instead of re-sorting the document.
+serde_json = { version = "1", features = ["preserve_order"] }
+# preserve_order pulls in indexmap, which otherwise resolves to a hashbrown
+# requiring rustc 1.85 and would break the workspace's 1.75 MSRV job.
+# xtask is internal-only (publish = false), so pinning it costs nothing.
+indexmap = "=2.11.4"
+
+[lints]
+workspace = true

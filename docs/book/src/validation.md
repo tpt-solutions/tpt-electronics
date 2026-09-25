@@ -33,8 +33,8 @@ How results are checked against industry references (and what is deferred).
 ## Golden fixtures
 
 `test-data/golden/` holds frozen JSON for eye, impedance, filter, SPICE, and
-network results. Refresh deliberately (hand-edit only; `xtask regen-goldens`
-planned).
+network results. Refresh them deliberately with `cargo run -p xtask --
+regen-goldens` (add `--write` to accept drift after reviewing it).
 
 | Domain | Standard | Where |
 |---|---|---|

@@ -353,7 +353,16 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Watch mode (`tpt-elec-cli thermal --watch` with file-signature polling)
 - [x] Better parse errors (subckt suggestions; line-number infrastructure in place)
 - [x] Chebyshev-II filter synthesis (response-based pole/zero design, even orders 2–12)
-- [ ] Elliptic (Cauer) filter synthesis — still needs Cauer g-tables or full elliptic-function pole extraction (rfcs/0004)
+- [ ] Elliptic (Cauer) filter synthesis — still needs Cauer g-tables or full elliptic-function pole extraction (rfcs/0004).
+      Attempted via Zolotarev fixed-point iteration: the characteristic function
+      `K(s)` reproduces the published 5-pole reference, and the achievable
+      stopband limits match the classic minimum-order tables (order 3 / 1 dB →
+      ~54 dB, order 5 / 1 dB → ~102 dB), but the resulting transfer function
+      showed no passband equiripple, so the implementation was reverted rather
+      than shipped unverified. Note a plain series/shunt ladder cannot carry
+      finite transmission zeros at all (`S21 = 2/(A+B+C+D)` is a polynomial
+      ratio), so this needs a constant-resistance lattice realisation or a
+      response-based path verified against a trusted reference.
 - [x] Band-stop ladder transformation (series parallel-LC series arm, series-LC shunt arm; ESR-damped)
 - [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)
 - [x] BSIM3/BSIM4 short-channel subsets (mobility degradation + velocity saturation + CLM) and EKV charge-sheet law; full Berkeley parameter sets deferred
@@ -388,7 +397,7 @@ Found in the platform review; each verified against the code.
 - [x] **Doctest the book**: book snippets currently don't compile anywhere — move them into crate docs (`#![doc = ...]`) or set up `mdbook test` in CI.
 - [x] **CLI JSON output** (`--format json`) so results pipe to `jq`/Python.
 - [x] **Better parse errors**: offsets in Gerber errors; suggestions ("unknown subckt `div` — defined in this file?"); span info for netlist tokens.
-- [ ] **`xtask regen-goldens`** (deferred — golden values are stable, xtask added later): deliberate golden-file refresh instead of hand-editing JSON.
+- [x] **`xtask regen-goldens`**: deliberate golden-file refresh instead of hand-editing JSON — see the `xtask` section below for scope and the cases it deliberately does not rewrite.
 - [x] **CI gaps**: run `cargo deny check bans` (only licenses run today); add an MSRV job (`rust-version = 1.75` is declared but untested).
 - [x] **Component power-map from KiCad**: plugin now builds `x_mm,y_mm,watts` from footprint `Power`/`power_w`/`PowerDissipation`/`Pdiss` properties (or an existing `<board>.power.csv`), replacing the hardcoded 0.5 W center source.
 - [x] **DRC via kicad-cli in the plugin**: plugin now also runs `tpt-elec-cli drc` against the saved board and writes `<board>.drc.txt` alongside the thermal CSV.
@@ -426,7 +435,7 @@ Found in the platform review; each verified against the code.
 
 ## Platform Review 2026-09-16 — Innovation
 
-- [ ] **Python bindings (pyo3)** for core simulation crates (thermal, SPICE, RF) to enable scripted parametric sweeps/optimization from notebooks — new `crates/python/tpt-elec-py` crate wraps thermal, impedance, and filter synthesis.
+- [x] **Python bindings (pyo3)** for core simulation crates — new `crates/python/tpt-elec-py` crate wraps thermal, impedance, and filter synthesis. SPICE binding is the one scope item still open; see the `Python bindings (pyo3)` section below.
 - [x] **Parametric sweep / optimization CLI subcommand** (e.g. `tpt-elec-cli sweep --param R1=1k..10k --objective thermal_max`) using the Newton-Raphson optimizer approach already used internally.
 - [x] **Expand `tpt-elec-wasm` bindings** beyond thermal + impedance to SPICE transient, eye-diagram, and PDN, so `demo/` becomes a full interactive browser playground.
 - [x] **Historical benchmark dashboard**: Criterion CI now extracts mean times and pushes them via `benchmark-action/github-action-benchmark` for a tracked trend (in addition to per-run artifacts).
@@ -436,3 +445,60 @@ Found in the platform review; each verified against the code.
 
 - [x] **Fix generic placeholder crate descriptions** in `Cargo.toml` across rf/power/semiconductor/emc crates (e.g. "tpt-electronics RF crate") — hurts crates.io/docs.rs presentation once published.
 - [x] **Verify the transmission-line stub** in `crates/rf/tpt-elec-rf-core/src/lib.rs:128` is a type placeholder only, not dead code on a hot path; document or remove.
+
+## Python bindings (pyo3)
+
+- [x] New `crates/python/tpt-elec-py` crate wrapping thermal, impedance and filter synthesis (pyo3 0.26, MSRV-compatible with the workspace's 1.75).
+- [x] `tpt_elec_py.impedance` — microstrip / stripline / differential pair, inverse width solve, Monte-Carlo stack-up, Smith-chart Γ↔Z.
+- [x] `tpt_elec_py.thermal` — steady-state voxel solve with convection and point heat sources.
+- [x] `tpt_elec_py.synthesize_filter` — prototype g-values, ladder elements and a swept S-parameter response for notebook sweeps/optimisation.
+- [x] `.pyi` type stubs so editors and `mypy` see the API, with a drift guard in
+  `smoke_test.py` that fails if the stub and the built module disagree.
+- [x] Bind the SPICE netlist/analysis crates (the one scope item from the Platform
+  Review entry above that is still open). The netlist text is the unit of input, so
+  each call is self-contained; the buck converter is checked against the crate's
+  own golden, which pinned the transient step size at 20 ns.
+- [ ] Elliptic synthesis is exposed as a name but raises `ValueError` until the
+  filter crate lands it (see the deferred item above).
+
+## xtask
+
+- [x] New `xtask` crate with `regen-goldens`: verifies `test-data/golden/` against
+  independent closed-form references (never against the crates under test), so the
+  check cannot be self-confirming. Check is the default and is wired into CI;
+  `--write` requires explicit intent, and simulation-derived fixtures are never
+  rewritten. Removes the no-op `TPT_REGEN_GOLDENS` block in the thermal golden test.
+- [x] `--list` classifies all seven fixtures (3 regenerable, 4 simulation-derived),
+  and a test fails if a new golden appears unclassified.
+- [ ] Extend `regen-goldens` to the four simulation-derived fixtures once a trusted
+  independent source exists for each (they cannot be regenerated from the code itself).
+
+## Remaining work
+
+Everything still open, split by whether it is actionable here. This is an
+overview only — the authoritative checkboxes live in the sections above, so
+tick those, not these.
+
+**Blocked - needs credentials or an account (not doable in-repo):**
+- Publish the crates to crates.io, leaf crates first. Requires a crates.io token
+  and a clean tree.
+- Publish the VS Code extension to the Marketplace. Requires a publisher account.
+
+**Blocked - needs a design decision or an external reference:**
+- Elliptic (Cauer) filter synthesis. Needs a constant-resistance lattice
+  realisation (a plain series/shunt ladder cannot carry finite transmission zeros)
+  or a response-based design validated against a trusted reference.
+- Extend `regen-goldens` to the simulation-derived fixtures. Needs an authority
+  independent of this code for each case.
+
+**Actionable now:**
+- `.pyi` type stubs for the Python API.
+- (none — the two open items, `.pyi` stubs and the SPICE bindings, are now done.)
+**Also worth fixing, found while adding the above:**
+- [x] **CI MSRV job was red on `master` — now green.** Three separate causes, not one:
+      `tpt-elec-core` used float arithmetic in `const fn` (needs 1.82) — dropped `const` from
+      `Complex::conj`/`norm_sqr` (nothing used them in a const context); xtask used float
+      literals as `match` patterns, and `serde_json/preserve_order` pulled in a hashbrown
+      needing rustc 1.85 — both rewritten, with `indexmap` pinned in the internal-only xtask.
+      The remaining `wasm-bindgen` 1.77 floor is a transitive *build*-dependency, so the MSRV
+      job now excludes `tpt-elec-wasm` (already covered on stable by the `wasm` job).

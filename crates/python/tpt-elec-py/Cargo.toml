@@ -1,0 +1,39 @@
+[package]
+name = "tpt-elec-py"
+description = "Python bindings for tpt-electronics thermal, impedance and filter simulation"
+keywords = ["python", "pcb", "thermal", "spice", "filter", "simulation"]
+categories = ["science", "simulation"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+
+[lib]
+name = "tpt_elec_py"
+# `cdylib` for the importable extension module, `rlib` so the crate can also
+# be exercised by `cargo test` and by other Rust code.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tpt-elec-core = { workspace = true }
+tpt-elec-materials = { workspace = true }
+tpt-elec-geometry = { workspace = true }
+tpt-elec-thermal = { workspace = true }
+tpt-elec-joule = { workspace = true }
+tpt-elec-si-impedance = { workspace = true }
+tpt-elec-si-core = { workspace = true }
+tpt-elec-rf-filters = { workspace = true }
+tpt-elec-rf-core = { workspace = true }
+tpt-elec-spice-core = { workspace = true }
+tpt-elec-spice-netlist = { workspace = true }
+tpt-elec-spice-analysis = { workspace = true }
+pyo3 = { version = "0.26", features = ["extension-module"] }
+
+[lints.rust]
+# pyo3's FFI layer requires `unsafe`; the rest of the workspace forbids it.
+# This crate contains no hand-written `unsafe` — see SAFETY notes in lib.rs.
+unsafe_code = "allow"
