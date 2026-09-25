@@ -26,7 +26,8 @@ impedance ↔ reflection coefficient for plotting or network analysis.
 
 `tpt-elec-rf-filters` synthesizes Butterworth, Chebyshev-I, Chebyshev-II
 (pole/zero, even orders), and Bessel low/high/band-pass responses. Elliptic
-(Cauer) is still deferred pending Cauer g-tables (see `rfcs/0004`).
+(Cauer) is still deferred: the response model does not yet produce a
+trustworthy equiripple pole/zero set (see `rfcs/0004`).
 
 ## Antennas & links
 

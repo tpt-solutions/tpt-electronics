@@ -321,8 +321,14 @@ impl FilterSynthesizer {
             return Ok(filt);
         }
         if matches!(filter_type, FilterType::Elliptic { .. }) {
+            // The blocker is the Zolotarev fixed-point iteration, not the
+            // realisation: a resonant series arm blocks at its pole, so the
+            // constant-resistance lattice here can carry transmission zeros.
+            // See `todo.md`, "Deferred (carried forward)".
             return Err(
-                "Elliptic (Cauer) synthesis is deferred: requires Cauer g-tables or                  full elliptic-function pole extraction (rfcs/0004)"
+                "Elliptic (Cauer) synthesis is deferred: the Zolotarev fixed-point iteration \
+                 does not converge to the equiripple solution for the even-order branch, so \
+                 the pole/zero set is not yet trustworthy (rfcs/0004, todo.md)"
                     .to_string(),
             );
         }

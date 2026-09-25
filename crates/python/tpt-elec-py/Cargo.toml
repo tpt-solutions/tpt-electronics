@@ -3,6 +3,10 @@ name = "tpt-elec-py"
 description = "Python bindings for tpt-electronics thermal, impedance and filter simulation"
 keywords = ["python", "pcb", "thermal", "spice", "filter", "simulation"]
 categories = ["science", "simulation"]
+# Ships as a wheel, not as a Rust dependency: the `cdylib` is useless to a Rust
+# consumer, so publishing it to crates.io would only reserve a name and mislead
+# `cargo add`. The other Rust crates are the publishable surface.
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

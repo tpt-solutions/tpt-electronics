@@ -512,9 +512,11 @@ tick those, not these.
 - Publish the VS Code extension to the Marketplace. Requires a publisher account.
 
 **Blocked - needs a design decision or an external reference:**
-- Elliptic (Cauer) filter synthesis. Needs a constant-resistance lattice
-  realisation (a plain series/shunt ladder cannot carry finite transmission zeros)
-  or a response-based design validated against a trusted reference.
+- Elliptic (Cauer) filter synthesis. The realisation is not the blocker — a
+  resonant series arm carries the transmission zeros, so the constant-resistance
+  lattice is fine. What is missing is a *trustworthy* equiripple pole/zero set:
+  the Zolotarev fixed point is verified only for odd orders, and it needs to be
+  validated per parity before any lattice work. See the detailed entry above.
 - Cross-check `buck_converter_transient` against an external SPICE solver
   (ngspice/LTspice). This is the last fixture that a second
   implementation of our own solver cannot cover.
@@ -531,3 +533,18 @@ tick those, not these.
       needing rustc 1.85 — both rewritten, with `indexmap` pinned in the internal-only xtask.
       The remaining `wasm-bindgen` 1.77 floor is a transitive *build*-dependency, so the MSRV
       job now excludes `tpt-elec-wasm` (already covered on stable by the `wasm` job).
+- [x] **Publishing metadata verified before burning a publish slot.** `cargo package
+      --workspace --no-verify` packages all 52 crates with no errors or warnings, so the
+      manifests, descriptions and file sets are already upload-clean; only the *order*
+      is left, since dependents refuse to prepare until their `tpt-elec-*` dependencies
+      exist on crates.io (`tpt-elec-core` is the single root and must go first). Marked
+      `crates/python/tpt-elec-py` `publish = false`: it ships as a wheel, so a crates.io
+      entry would only reserve a name and mislead `cargo add`. `xtask`, `benches` and
+      `examples/*` already carry the flag.
+- [x] **The stated reason elliptic is deferred was wrong, and pointed future attempts at
+      a dead end.** The summary, `rfcs/0004`, the book and the CLI/Python error strings
+      all said it "needs Cauer g-tables". The detailed entry above had already disproven
+      that: g-tables are not required (a resonant series arm carries the transmission
+      zeros, so the lattice is fine) and the real blocker is the Zolotarev fixed point
+      not landing on the equiripple solution. All five now agree. The CLI string also
+      carried a run of stray spaces from a bad line continuation.
