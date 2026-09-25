@@ -23,12 +23,14 @@ $50k seats; the closed forms are entirely public and testable.
   validation can never silently diverge.
 * Filters: g-value prototypes + LP→HP transformation; the Butterworth −3 dB
   corner and Chebyshev equal-ripple edge are asserted through the same ABCD
-  simulation.
+  simulation. Chebyshev-II uses a response-based pole/zero design (even
+  orders 2–12). Elliptic (Cauer) remains deferred — needs Cauer g-tables
+  or full elliptic-function pole extraction.
 
 ## Alternatives
 
 Real-frequency technique (deferred), optimization-based matching (deferred),
-elliptic synthesis (tables not yet vendored).
+elliptic synthesis (Cauer tables not yet vendored).
 
 ## Unresolved questions
 

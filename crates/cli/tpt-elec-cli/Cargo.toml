@@ -1,7 +1,7 @@
 [package]
 name = "tpt-elec-cli"
-description = "Command-line front end: thermal, impedance, DRC, and report subcommands"
-keywords = ["cli", "pcb", "thermal", "impedance", "drc"]
+description = "Command-line front end: thermal, impedance, DRC, SPICE, RF, power, EMC, battery, and sweep subcommands"
+keywords = ["cli", "pcb", "thermal", "spice", "emc"]
 categories = ["command-line-utilities", "science"]
 version.workspace = true
 edition.workspace = true
@@ -16,8 +16,6 @@ authors.workspace = true
 name = "tpt-elec-cli"
 path = "src/main.rs"
 
-
-
 [dependencies]
 tpt-elec-core = { workspace = true }
 tpt-elec-materials = { workspace = true }
@@ -27,6 +25,17 @@ tpt-elec-kicad = { workspace = true }
 tpt-elec-thermal = { workspace = true }
 tpt-elec-mfg-dfm = { workspace = true }
 tpt-elec-si-impedance = { workspace = true }
+tpt-elec-spice-netlist = { workspace = true }
+tpt-elec-spice-analysis = { workspace = true }
+tpt-elec-rf-core = { workspace = true }
+tpt-elec-rf-filters = { workspace = true }
+tpt-elec-power-core = { workspace = true }
+tpt-elec-power-control = { workspace = true }
+tpt-elec-emc-core = { workspace = true }
+tpt-elec-emc-emissions = { workspace = true }
+tpt-elec-battery-core = { workspace = true }
+tpt-elec-battery-bms = { workspace = true }
+tpt-elec-battery-thermal = { workspace = true }
 
 [lints]
 workspace = true

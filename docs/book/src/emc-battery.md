@@ -1,5 +1,50 @@
 # EMC & battery
 
+Predict emissions/immunity, estimate shielding, and model battery packs.
+
+## EMC standards & limits
+
+`tpt-elec-emc-core` defines `EmcStandard` (CISPR 32 A/B, FCC Part 15 A/B,
+MIL-STD-461, DO-160, IEC 61000, automotive), `EmcLimit`, and `EmcTestType`.
+
+## Emissions
+
+`tpt-elec-emc-emissions`:
+
+- Radiated: trapezoidal waveform harmonic spectrum.
+- Conducted: di/dt and parasitic inductance paths.
+
+CLI:
+
+```console
+$ tpt-elec-cli emc --standard cispr32-b --waveform clock.json
+```
+
+## Immunity
+
+Radiated/conducted immunity, ESD, surge, and EFT test modeling in
+`tpt-elec-emc-immunity`.
+
+## Shielding & grounding
+
+Plane-wave shielding \(SE = R + A + B\) (`ShieldingCalculator`), shield materials
+(copper → mu-metal, paint), plus ground-loop / return-path modeling in
+`tpt-elec-emc-grounding`.
+
+## Battery
+
+- `tpt-elec-battery-core` — cell, chemistry, ECM, OCV, `terminal_voltage`.
+- `tpt-elec-battery-thermal` — `ThermalRunawayModel`, `propagation_risk`,
+  adjacency.
+- `tpt-elec-battery-bms` — SOC estimators (Coulomb, KF/EKF/UKF, neural).
+- `tpt-elec-battery-pack` — series/parallel composition, pack SOC/thermal.
+
+## Try it
+
+Battery thermal runaway propagation runs end-to-end in unit tests
+(`tpt-elec-battery-thermal`). See [Validation](validation.md) for UN GTR 20 /
+IEC 62660 notes.
+
 ## EMC
 
 - `tpt-elec-emc-core` — CISPR 32 / FCC Part 15 limit lines (Class A/B,

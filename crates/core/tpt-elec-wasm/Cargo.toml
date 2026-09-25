@@ -23,6 +23,11 @@ tpt-elec-materials = { workspace = true }
 tpt-elec-gerber = { workspace = true }
 tpt-elec-thermal = { workspace = true }
 tpt-elec-si-impedance = { workspace = true }
+tpt-elec-spice-netlist = { workspace = true }
+tpt-elec-spice-analysis = { workspace = true }
+tpt-elec-spice-core = { workspace = true }
+tpt-elec-si-eye = { workspace = true }
+tpt-elec-pi-pdn = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 wasm-bindgen = { workspace = true }

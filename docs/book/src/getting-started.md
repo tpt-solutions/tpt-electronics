@@ -1,5 +1,54 @@
 # Getting started
 
+## Install the CLI
+
+```console
+$ cargo install --path crates/cli/tpt-elec-cli
+$ tpt-elec-cli --help
+```
+
+## Scaffold a project
+
+```console
+$ cargo generate tpt-solutions/tpt-electronics-template
+$ cd my-analysis
+$ cargo test
+```
+
+## Thermal from Gerber (paste-able)
+
+```console
+$ git clone https://github.com/tpt-solutions/tpt-electronics
+$ cd tpt-electronics
+$ cargo run -p example-simple-led-board
+```
+
+Or from your own board:
+
+```console
+$ tpt-elec-cli thermal --gerber board.gtl --out temps.csv --resolution-mm 1.0
+```
+
+## Impedance check
+
+```console
+$ tpt-elec-cli impedance --width-mm 0.3 --height-mm 0.16 --er 4.5
+```
+
+## DRC
+
+```console
+$ tpt-elec-cli drc --kicad board.kicad_pcb
+```
+
+## Examples
+
+See [`examples/README.md`](https://github.com/tpt-solutions/tpt-electronics/blob/main/examples/README.md) for the full index.
+
+## Which crate?
+
+See [Which crate do I need?](crate-map.md).
+
 ```console
 $ cargo build --workspace
 $ cargo test --workspace

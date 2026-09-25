@@ -13,6 +13,7 @@
   ],
   "activationEvents": [
     "onCommand:tpt-electronics.thermal",
+    "onCommand:tpt-electronics.drc",
     "onCommand:tpt-electronics.impedance"
   ],
   "main": "./extension.js",
@@ -21,6 +22,10 @@
       {
         "command": "tpt-electronics.thermal",
         "title": "tpt-electronics: Run thermal sweep"
+      },
+      {
+        "command": "tpt-electronics.drc",
+        "title": "tpt-electronics: Run DRC"
       },
       {
         "command": "tpt-electronics.impedance",

@@ -1,5 +1,40 @@
 # Introduction
 
+**tpt-electronics** is a multiphysics simulation engine for electronic systems —
+thermal, circuit (SPICE), signal/power integrity, RF, power conversion, EMC,
+battery, and manufacturing — written in pure Rust and dual-licensed
+MIT OR Apache-2.0.
+
+## Why this exists
+
+Commercial multiphysics stacks are closed, expensive, and hard to script.
+tpt-electronics is fully open-source, headless-first (CLI + library + WASM),
+and designed so each domain is an independent crate you can `cargo add` (once
+published) or path-depend today.
+
+## What you can do today
+
+- Gerber → thermal temperature field (CSV/HTML report)
+- SPICE netlist → DC/AC/transient/noise
+- Impedance, eye diagrams, PDN
+- RF matching / filters / link budget
+- Buck converter design + compensator
+- CISPR 32 emissions, shielding
+- Battery SOC + runaway propagation
+- DRC, yield, boundary scan
+
+## How the book is organized
+
+1. [Which crate do I need?](crate-map.md) — decision table
+2. [Tutorial](tutorial.md) — narrated KiCad → report walkthrough
+3. Domain chapters (thermal, SPICE, SI, RF, power, EMC/battery, semi/mfg)
+4. [WASM](wasm.md) & [Validation](validation.md)
+
+## Quick start
+
+See [Getting started](getting-started.md) for paste-able commands
+(`cargo generate`, CLI install, first thermal run).
+
 `tpt-electronics` is a fully open-source, MIT-licensed multiphysics
 simulation engine for electronic systems, written in pure Rust.
 

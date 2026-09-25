@@ -125,9 +125,9 @@ pub enum MatchingTopology {
     PiNetwork,
     /// Three-element T network.
     TNetwork,
-    /// Transmission-line stub (scaffolded).
+    /// Transmission-line stub (scaffold placeholder — not yet synthesized).
     StubMatch,
-    /// Quarter-wave transformer (scaffolded).
+    /// Quarter-wave transformer (scaffold placeholder — not yet synthesized).
     TransformerMatch,
 }
 
@@ -275,7 +275,6 @@ impl MatchingDesigner {
         let qb = ((rl / rv) - 1.0).sqrt();
         let x_shunt_s = rs / qa;
         let x_shunt_l = rl / qb;
-        let _x_series = (rs * rv - rv * rv).sqrt() / rv * rv / qa + rv * qb; // = rv·qb + rv·qa equivalent
         let x_series = rv * (qa + qb);
 
         // Signs: pick capacitive shunt / inductive series (most common).
@@ -284,7 +283,6 @@ impl MatchingDesigner {
             series_from_reactance(x_series, omega),
             shunt_from_reactance(-x_shunt_l, omega),
         ];
-        let _ = x_series;
         MatchingNetwork {
             topology: MatchingTopology::PiNetwork,
             elements,

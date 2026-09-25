@@ -19,6 +19,40 @@ jobs:
         run: cargo bench --workspace --bench thermal-steady-state --bench joule-heating --bench spice-transient --bench si-eye-diagram -- --save-baseline ci
       - name: Compare against previous baseline (informational)
         run: cargo bench --workspace -- --baseline ci 2>/dev/null || true
+      - name: Extract criterion results for github-action-benchmark
+        run: |
+          mkdir -p benchmark-data
+          python3 - <<'PY'
+          import json, os, re, glob
+          out = []
+          for est in glob.glob("target/criterion/**/new/estimates.json", recursive=True):
+              path = est.replace(os.sep, "/")
+              # target/criterion/<bench_name>/new/estimates.json
+              m = re.search(r"target/criterion/([^/]+)/new/estimates.json", path)
+              if not m:
+                  continue
+              name = m.group(1)
+              with open(est) as f:
+                  data = json.load(f)
+              mean = data.get("mean", {}).get("point_estimate")
+              if mean is None:
+                  continue
+              # criterion reports in femtoseconds; convert to nanoseconds
+              out.append({"name": name, "unit": "ns", "value": mean / 1e6})
+          with open("benchmark-data/output.json", "w") as f:
+              json.dump(out, f)
+          print(f"wrote {len(out)} benchmark(s)")
+          PY
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Criterion Benchmarks
+          tool: customSmallerBetter
+          output-file-path: benchmark-data/output.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: true
+          alert-threshold: "200%"
       - name: Upload criterion reports
         uses: actions/upload-artifact@v4
         with:

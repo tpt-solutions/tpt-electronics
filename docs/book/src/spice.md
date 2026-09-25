@@ -1,5 +1,39 @@
 # Circuit simulation (SPICE)
 
+Netlist → MNA → DC/AC/transient/noise, all in pure Rust (`tpt-elec-spice-*`).
+
+## Pipeline
+
+1. **Parse** — `SpiceNetlistParser` (`tpt-elec-spice-netlist`): R/C/L/M/D,
+   `.model`, `.tran`, `.ac`, `.subckt`/`.ends`.
+2. **Build** — `Circuit` / `MnaMatrix` (`tpt-elec-spice-core`).
+3. **Analyze** — `SpiceAnalyzer` (`tpt-elec-spice-analysis`):
+   - `dc_operating_point` (Newton–Raphson)
+   - `ac_analysis` (complex MNA per frequency)
+   - `transient` (trapezoidal/Gear, adaptive step)
+   - `noise_analysis` (thermal/shot/flicker via `tpt-elec-spice-noise`)
+
+Models: MOSFET Level 1–3 (BSIM3/4 subsets + EKV charge-sheet documented),
+Shockley diode, BJT.
+
+## CLI
+
+```console
+$ tpt-elec-cli spice --netlist buck.net --analysis tran --out result.json
+```
+
+JSON output: `--format json` for `jq`/Python.
+
+## Golden test
+
+`test-data/golden/spice/buck_converter_transient.json` — buck end-to-end
+cross-checked against the power-converter example.
+
+## Fixtures
+
+`test-data/spice/rc_lowpass.net`, `buck.net` (note: workspace path contains
+spaces — quote paths).
+
 The SPICE engine is a clean-room MNA implementation:
 
 - `tpt-elec-spice-core` — circuit graph, node table, waveforms (DC,

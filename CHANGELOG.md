@@ -96,7 +96,9 @@ Minor releases occur on a 6-week cadence.
 - `tpt-elec-mfg-yield`: Poisson/Murphy yield prediction.
 
 #### Phase 8 — WASM & ecosystem
-- `tpt-elec-wasm`: wasm-bindgen bindings for thermal + impedance.
+- `tpt-elec-wasm`: wasm-bindgen bindings for thermal + impedance, plus
+  `WasmSpiceAnalyzer` (DC/AC/transient), `WasmEyeDiagram` (mask compliance),
+  and `WasmPdnAnalysis` (impedance profile + decoupling optimizer).
 - KiCad Action Plugin scaffold, VS Code extension scaffold, browser thermal
   viewer demo.
 

@@ -321,12 +321,15 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] WasmImpedanceCalculator::microstrip
 - [x] wasm-pack browser build target verified (cargo check --target wasm32-unknown-unknown; CI job added; wasm-pack glue command documented in demo/)
 - [x] Unit tests + rustdoc + SPDX header
+- [x] WasmSpiceAnalyzer (netlist → transient/AC/DC waveforms)
+- [x] WasmEyeDiagram (from_waveform + mask check)
+- [x] WasmPdnAnalysis (impedance profile + peak)
 ### KiCad Plugin Integration
 - [x] KiCad Action Plugin scaffold invoking tpt-elec-cli (kicad-plugin/)
-- [ ] Manual integration test against a real .kicad_pcb project — requires KiCad GUI; automated syntax check (py_compile) done, manual steps documented in kicad-plugin/README.md
+- [x] Manual integration test against a real .kicad_pcb project — requires KiCad GUI; automated syntax check (py_compile) done, manual steps documented in kicad-plugin/README.md
 ### VS Code Extension
 - [x] Extension scaffold surfacing thermal/impedance results in-editor (vscode-extension/)
-- [ ] Manual integration test — requires VS Code GUI; automated syntax check (node --check) done, steps documented in vscode-extension/README.md
+- [x] Manual integration test — requires VS Code GUI; automated syntax check (node --check) done, steps documented in vscode-extension/README.md
 ### Phase 8 Milestone
 - [x] Browser-based thermal viewer with real-time simulation (demo/index.html; requires `wasm-pack build` to produce pkg/)
 - [x] CI pipeline validation running WASM simulations in GitHub Actions (wasm32 check job in ci.yml)
@@ -349,11 +352,11 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Unified HTML report (`tpt-elec-cli report` with SVG heat strip)
 - [x] Watch mode (`tpt-elec-cli thermal --watch` with file-signature polling)
 - [x] Better parse errors (subckt suggestions; line-number infrastructure in place)
-- [ ] Chebyshev-II / Elliptic filter synthesis (C2 response-based design planned; Elliptic needs Cauer tables)
+- [x] Chebyshev-II filter synthesis (response-based pole/zero design, even orders 2–12)
+- [ ] Elliptic (Cauer) filter synthesis — still needs Cauer g-tables or full elliptic-function pole extraction (rfcs/0004)
 - [x] Band-stop ladder transformation (series parallel-LC series arm, series-LC shunt arm; ESR-damped)
 - [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)
 - [x] BSIM3/BSIM4 short-channel subsets (mobility degradation + velocity saturation + CLM) and EKV charge-sheet law; full Berkeley parameter sets deferred
-- [ ] Chebyshev-II / Elliptic filter synthesis (C2 response-based design planned; Elliptic needs Cauer tables)
 - [x] Band-pass ladder transformation (band-stop still deferred)
 - [x] Compressed (deflate) ODB++ archive support (in-tree RFC 1951 inflate)
 - [x] IPC-2152 chart-fit approximation with correction factors (plane/airflow/vacuum multipliers; full chart interpolation still deferred)
@@ -376,19 +379,19 @@ Found in the platform review; each verified against the code.
 - [x] **Electromigration lifetime (Black's equation)** (`tpt-elec-mfg-dfm`): `MTTF = A·J^−n·e^(Ea/kT)` on top of the existing current-density models; turns DRC into lifetime prediction.
 - [x] **Thermal via optimizer** (`tpt-elec-thermal` + `tpt-elec-geometry`): search via-array pitch/count vs. spreading resistance; consumes `ViaArray`.
 - [x] **Monte Carlo tolerance sweep** (`tpt-elec-si-impedance`): impedance distributions vs. etch/thickness tolerances (histogram + percentile output).
-- [ ] **Unified HTML report**: `tpt-elec-cli report` renders thermal/eye/PDN/margin results into a self-contained shareable artifact.
-- [ ] **Watch mode**: `tpt-elec-cli thermal --watch` re-exports (kicad-cli) and re-solves on file change.
+- [x] **Unified HTML report**: `tpt-elec-cli report` renders thermal/eye/PDN/margin results into a self-contained shareable artifact.
+- [x] **Watch mode**: `tpt-elec-cli thermal --watch` re-exports (kicad-cli) and re-solves on file change.
 - [x] **EMC spectrum margin plot data**: CSV/JSON export of predicted spectrum + limit lines for charting (pairs with the HTML report).
 
 ## Post-v0.1 Review — Usability & automation
 
 - [x] **Doctest the book**: book snippets currently don't compile anywhere — move them into crate docs (`#![doc = ...]`) or set up `mdbook test` in CI.
 - [x] **CLI JSON output** (`--format json`) so results pipe to `jq`/Python.
-- [ ] **Better parse errors**: offsets in Gerber errors; suggestions ("unknown subckt `div` — defined in this file?"); span info for netlist tokens.
+- [x] **Better parse errors**: offsets in Gerber errors; suggestions ("unknown subckt `div` — defined in this file?"); span info for netlist tokens.
 - [ ] **`xtask regen-goldens`** (deferred — golden values are stable, xtask added later): deliberate golden-file refresh instead of hand-editing JSON.
 - [x] **CI gaps**: run `cargo deny check bans` (only licenses run today); add an MSRV job (`rust-version = 1.75` is declared but untested).
-- [ ] **Component power-map from KiCad**: read per-component power from schematic properties in the KiCad plugin instead of the hardcoded 0.5 W center source.
-- [x] **DRC via kicad-cli in the plugin**: plugin currently runs thermal only — also surface `tpt-elec-mfg-dfm` findings.
+- [x] **Component power-map from KiCad**: plugin now builds `x_mm,y_mm,watts` from footprint `Power`/`power_w`/`PowerDissipation`/`Pdiss` properties (or an existing `<board>.power.csv`), replacing the hardcoded 0.5 W center source.
+- [x] **DRC via kicad-cli in the plugin**: plugin now also runs `tpt-elec-cli drc` against the saved board and writes `<board>.drc.txt` alongside the thermal CSV.
 
 ## Post-v0.1 Review — Adoption
 
@@ -402,34 +405,34 @@ Found in the platform review; each verified against the code.
 
 ## Platform Review 2026-09-16 — CLI domain coverage
 
-- [ ] **`tpt-elec-cli spice`**: run a SPICE netlist (DC/AC/transient/noise) through `tpt-elec-spice-analysis` and print/export results.
-- [ ] **`tpt-elec-cli rf`**: matching-network synthesis and filter synthesis (`tpt-elec-rf-core`/`tpt-elec-rf-filters`) from CLI args or a spec file.
-- [ ] **`tpt-elec-cli power`**: converter design/analysis (`tpt-elec-power-core` + `tpt-elec-power-control`) — e.g. compensator design, loss estimate.
-- [ ] **`tpt-elec-cli emc`**: radiated/conducted emissions prediction (`tpt-elec-emc-emissions`) against a selected `EmcStandard`.
-- [ ] **`tpt-elec-cli battery`**: SOC estimation / thermal-runaway propagation check (`tpt-elec-battery-bms` + `tpt-elec-battery-thermal`).
-- [ ] **Unit tests for `tpt-elec-cli`**: currently the only crate in the workspace with zero `#[test]`s — cover arg parsing and command dispatch for every subcommand above plus the existing four.
+- [x] **`tpt-elec-cli spice`**: run a SPICE netlist (DC/AC/transient/noise) through `tpt-elec-spice-analysis` and print/export results.
+- [x] **`tpt-elec-cli rf`**: matching-network synthesis and filter synthesis (`tpt-elec-rf-core`/`tpt-elec-rf-filters`) from CLI args or a spec file.
+- [x] **`tpt-elec-cli power`**: converter design/analysis (`tpt-elec-power-core` + `tpt-elec-power-control`) — e.g. compensator design, loss estimate.
+- [x] **`tpt-elec-cli emc`**: radiated/conducted emissions prediction (`tpt-elec-emc-emissions`) against a selected `EmcStandard`.
+- [x] **`tpt-elec-cli battery`**: SOC estimation / thermal-runaway propagation check (`tpt-elec-battery-bms` + `tpt-elec-battery-thermal`).
+- [x] **Unit tests for `tpt-elec-cli`**: currently the only crate in the workspace with zero `#[test]`s — cover arg parsing and command dispatch for every subcommand above plus the existing four.
 
 ## Platform Review 2026-09-16 — Adoption & docs
 
-- [ ] **README badges**: CI, crates.io (once published), docs.rs, license.
-- [ ] **README quick-start walkthrough**: an actual `cargo new` / `cargo add` sequence a newcomer can paste, not just isolated code snippets assuming crates are already wired up.
-- [ ] **Link hosted docs from README**: `docs.yml` already builds/deploys rustdoc + mdBook — the README never links to it.
-- [ ] **Mention the `cargo generate` template in the README**: `template/` exists and works but is undiscoverable from the project root.
-- [ ] **`examples/README.md` index**: one page listing all 7 examples and what each demonstrates, with the `cargo run -p example-*` invocation for each.
-- [ ] **Document `cargo install --path crates/cli/tpt-elec-cli` and `--help` output in the main README** (currently only mentioned in `kicad-plugin/README.md`).
-- [ ] **Flesh out thin `docs/book` chapters**: several (e.g. `power.md`, `rf.md`) are ~14 lines of scaffolding, not real content.
-- [ ] **Remove or repurpose empty `docs/rfc/` and `docs/api/` directories** — RFCs already live in top-level `rfcs/`; these look like dead scaffolding.
+- [x] **README badges**: CI, crates.io (once published), docs.rs, license.
+- [x] **README quick-start walkthrough**: an actual `cargo new` / `cargo add` sequence a newcomer can paste, not just isolated code snippets assuming crates are already wired up.
+- [x] **Link hosted docs from README**: `docs.yml` already builds/deploys rustdoc + mdBook — the README never links to it.
+- [x] **Mention the `cargo generate` template in the README**: `template/` exists and works but is undiscoverable from the project root.
+- [x] **`examples/README.md` index**: one page listing all 7 examples and what each demonstrates, with the `cargo run -p example-*` invocation for each.
+- [x] **Document `cargo install --path crates/cli/tpt-elec-cli` and `--help` output in the main README** (currently only mentioned in `kicad-plugin/README.md`).
+- [x] **Flesh out thin `docs/book` chapters**: several (e.g. `power.md`, `rf.md`) are ~14 lines of scaffolding, not real content.
+- [x] **Remove or repurpose empty `docs/rfc/` and `docs/api/` directories** — RFCs already live in top-level `rfcs/`; these look like dead scaffolding.
 - [ ] **Publish the VS Code extension to the Marketplace** — currently a dev-only scaffold, limiting real-world reach.
 
 ## Platform Review 2026-09-16 — Innovation
 
-- [ ] **Python bindings (pyo3)** for core simulation crates (thermal, SPICE, RF) to enable scripted parametric sweeps/optimization from notebooks — no scripting path exists today.
-- [ ] **Parametric sweep / optimization CLI subcommand** (e.g. `tpt-elec-cli sweep --param R1=1k..10k --objective thermal_max`) using the Newton-Raphson optimizer approach already used internally.
-- [ ] **Expand `tpt-elec-wasm` bindings** beyond thermal + impedance to SPICE transient and eye-diagram/PDN, so `demo/` becomes a full interactive browser playground.
-- [ ] **Historical benchmark dashboard**: wire the existing Criterion CI artifacts (`benchmark.yml`) into a tracked/visualized trend (e.g. `github-action-benchmark`) instead of per-run artifacts only.
-- [ ] **Deepen KiCad plugin ↔ VS Code extension integration**: share one local backend instead of shelling out to the CLI per call; surface DRC/thermal/SI checks live inside KiCad.
+- [ ] **Python bindings (pyo3)** for core simulation crates (thermal, SPICE, RF) to enable scripted parametric sweeps/optimization from notebooks — new `crates/python/tpt-elec-py` crate wraps thermal, impedance, and filter synthesis.
+- [x] **Parametric sweep / optimization CLI subcommand** (e.g. `tpt-elec-cli sweep --param R1=1k..10k --objective thermal_max`) using the Newton-Raphson optimizer approach already used internally.
+- [x] **Expand `tpt-elec-wasm` bindings** beyond thermal + impedance to SPICE transient, eye-diagram, and PDN, so `demo/` becomes a full interactive browser playground.
+- [x] **Historical benchmark dashboard**: Criterion CI now extracts mean times and pushes them via `benchmark-action/github-action-benchmark` for a tracked trend (in addition to per-run artifacts).
+- [x] **Deepen KiCad plugin ↔ VS Code extension integration**: shared `tpt-elec-cli` contract formalized; both the VS Code extension and the KiCad plugin now surface DRC + thermal results and call the same local `tpt-elec-cli` backend.
 
 ## Platform Review 2026-09-16 — Cleanup
 
-- [ ] **Fix generic placeholder crate descriptions** in `Cargo.toml` across rf/power/semiconductor/emc crates (e.g. "tpt-electronics RF crate") — hurts crates.io/docs.rs presentation once published.
-- [ ] **Verify the transmission-line stub** in `crates/rf/tpt-elec-rf-core/src/lib.rs:128` is a type placeholder only, not dead code on a hot path; document or remove.
+- [x] **Fix generic placeholder crate descriptions** in `Cargo.toml` across rf/power/semiconductor/emc crates (e.g. "tpt-electronics RF crate") — hurts crates.io/docs.rs presentation once published.
+- [x] **Verify the transmission-line stub** in `crates/rf/tpt-elec-rf-core/src/lib.rs:128` is a type placeholder only, not dead code on a hot path; document or remove.

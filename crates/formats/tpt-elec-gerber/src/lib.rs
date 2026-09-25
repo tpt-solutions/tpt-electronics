@@ -30,15 +30,34 @@ pub struct GerberError {
     pub message: String,
     /// The command that failed to parse.
     pub command: String,
+    /// 1-based source line, when known.
+    pub line: Option<usize>,
+}
+
+impl GerberError {
+    /// Attaches a 1-based line number if not already set.
+    pub fn at_line(mut self, line: usize) -> Self {
+        if self.line.is_none() {
+            self.line = Some(line);
+        }
+        self
+    }
 }
 
 impl fmt::Display for GerberError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "gerber parse error at `{}`: {}",
-            self.command, self.message
-        )
+        match self.line {
+            Some(n) => write!(
+                f,
+                "gerber parse error at line {n}, `{}`: {}",
+                self.command, self.message
+            ),
+            None => write!(
+                f,
+                "gerber parse error at `{}`: {}",
+                self.command, self.message
+            ),
+        }
     }
 }
 
@@ -324,18 +343,21 @@ impl GerberParser {
         let mut region_polarity = Polarity::Dark;
         let mut first_comment: Option<String> = None;
 
-        for raw in input.lines() {
+        for (idx, raw) in input.lines().enumerate() {
+            let line_no = idx + 1;
             let line = raw.trim();
             if line.is_empty() {
                 continue;
             }
+            let line_no_now = line_no;
 
             // Extended commands: multiple %...% blocks can share a line.
             if line.starts_with('%') {
                 let blocks = split_extended(raw);
                 for block in blocks {
+                    let with_line = |e: GerberError| e.at_line(line_no_now);
                     if block.starts_with("AM") {
-                        let (name, prims) = parse_macro(&block)?;
+                        let (name, prims) = parse_macro(&block).map_err(with_line)?;
                         self.state.aperture_macros.insert(
                             name.clone(),
                             ApertureMacro {
@@ -350,21 +372,25 @@ impl GerberParser {
                         continue;
                     }
                     if body.starts_with("FS") {
-                        self.state.format = Some(parse_fs(body)?);
+                        self.state.format = Some(parse_fs(body).map_err(with_line)?);
                     } else if body.starts_with("MO") {
                         self.state.units = match body.trim_start_matches("MO") {
                             "MM" => Some(Units::Millimeters),
                             "IN" => Some(Units::Inches),
-                            other => return Err(err(&format!("unknown units {other:?}"), &block)),
+                            other => {
+                                return Err(err(&format!("unknown units {other:?}"), &block)
+                                    .at_line(line_no_now))
+                            }
                         };
                     } else if body.starts_with("AD") {
-                        let (dcode, aperture) = parse_ad(body, &self.state.aperture_macros)?;
+                        let (dcode, aperture) =
+                            parse_ad(body, &self.state.aperture_macros).map_err(with_line)?;
                         self.state.apertures.insert(dcode, aperture);
                     } else if body.starts_with("LP") {
                         self.state.polarity = match body.trim_start_matches("LP") {
                             "D" => Polarity::Dark,
                             "C" => Polarity::Clear,
-                            other => return Err(err("bad LP polarity", other)),
+                            other => return Err(err("bad LP polarity", other).at_line(line_no_now)),
                         };
                     }
                     // Other extended commands (SR, OF, IP, IR, AS, MI, SF…)
@@ -441,7 +467,8 @@ impl GerberParser {
                             &mut result,
                             region_mode,
                             &mut region_points,
-                        )?;
+                        )
+                        .map_err(|e| e.at_line(line_no_now))?;
                     } else if self.state.apertures.contains_key(&d) {
                         current_aperture = Some(d);
                     }
@@ -449,8 +476,10 @@ impl GerberParser {
                 }
             }
             if work.starts_with('X') || work.starts_with('Y') {
-                let (op, coords) = split_operation(&work)?;
-                let (pos, offsets) = self.to_meters(&coords, current_pos)?;
+                let (op, coords) = split_operation(&work).map_err(|e| e.at_line(line_no_now))?;
+                let (pos, offsets) = self
+                    .to_meters(&coords, current_pos)
+                    .map_err(|e| e.at_line(line_no_now))?;
                 self.apply_operation(
                     op,
                     pos,
@@ -460,7 +489,8 @@ impl GerberParser {
                     &mut result,
                     region_mode,
                     &mut region_points,
-                )?;
+                )
+                .map_err(|e| e.at_line(line_no_now))?;
             }
         }
 
@@ -601,6 +631,7 @@ fn err(message: &str, command: &str) -> GerberError {
     GerberError {
         message: message.to_string(),
         command: command.to_string(),
+        line: None,
     }
 }
 
@@ -845,7 +876,8 @@ impl GerberParser {
         let mut result = ParsedDrill::default();
         let mut metric = true;
         let mut current_tool: Option<u32> = None;
-        for raw in input.lines() {
+        for (idx, raw) in input.lines().enumerate() {
+            let line_no = idx + 1;
             let line = raw.trim();
             if line.is_empty() || line.starts_with(';') {
                 continue;
@@ -878,7 +910,7 @@ impl GerberParser {
                 let num: String = up[1..].chars().take_while(|c| c.is_ascii_digit()).collect();
                 let tool = num
                     .parse::<u32>()
-                    .map_err(|_| err("bad tool number", line))?;
+                    .map_err(|_| err("bad tool number", line).at_line(line_no))?;
                 if let Some(ci) = up.find('C') {
                     let dia_str: String = up[ci + 1..]
                         .chars()
@@ -886,7 +918,7 @@ impl GerberParser {
                         .collect();
                     let dia_mm = dia_str
                         .parse::<f64>()
-                        .map_err(|_| err("bad tool diameter", line))?;
+                        .map_err(|_| err("bad tool diameter", line).at_line(line_no))?;
                     let dia = if metric {
                         Length::mm(dia_mm)
                     } else {
@@ -1132,6 +1164,8 @@ M02*
         assert!(r.is_err());
         let e = r.unwrap_err();
         assert!(e.message.contains("%FS"));
+        // coordinate seen before %FS is on line 1
+        assert_eq!(e.line, Some(1));
     }
 
     const DRILL: &str = "\

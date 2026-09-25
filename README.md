@@ -1,7 +1,13 @@
 # tpt-electronics
 
+[![CI](https://github.com/tpt-solutions/tpt-electronics/actions/workflows/ci.yml/badge.svg)](https://github.com/tpt-solutions/tpt-electronics/actions/workflows/ci.yml)
+[![Docs](https://github.com/tpt-solutions/tpt-electronics/actions/workflows/docs.yml/badge.svg)](https://tpt-solutions.github.io/tpt-electronics/)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+
 A fully open-source, MIT-licensed multiphysics simulation engine for electronic
 systems, written in pure Rust.
+
+📖 **[Documentation](https://tpt-solutions.github.io/tpt-electronics/)** (mdBook + rustdoc)
 
 `tpt-electronics` solves the problems that kill hardware projects — thermal
 runaway, electromigration, signal-integrity failures, power-delivery droop, EMC
@@ -78,12 +84,35 @@ GPL-contaminated dependencies.
 | `tpt-elec-mfg-dfm` | DRC engine + IPC-2152 | ✅ Stable |
 | `tpt-elec-mfg-test` | IEEE 1149.1 boundary scan | 🚧 Alpha |
 | `tpt-elec-mfg-yield` | Yield prediction | ✅ Stable |
-| `tpt-elec-wasm` | WebAssembly bindings | 🚧 Alpha |
+| `tpt-elec-wasm` | WebAssembly bindings (thermal, SPICE, eye, PDN) | 🚧 Alpha |
 | `tpt-elec-cli` | Gerber → thermal CSV CLI | ✅ Stable |
 
 Status legend: ✅ Stable · 🚧 Alpha · 📋 Planned
 
 ## Quick Start
+
+Newcomer path (paste-able):
+
+```console
+$ git clone https://github.com/tpt-solutions/tpt-electronics
+$ cd tpt-electronics
+$ cargo build --workspace
+$ cargo test --workspace
+$ cargo run -p example-pcie-eye-diagram
+```
+
+Or scaffold a fresh analysis project with `cargo generate`:
+
+```console
+$ cargo generate tpt-solutions/tpt-electronics-template
+```
+
+Or add the CLI:
+
+```console
+$ cargo install --path crates/cli/tpt-elec-cli
+$ tpt-elec-cli help
+```
 
 Thermal analysis from a Gerber file:
 
@@ -121,8 +150,9 @@ let ac = analyzer.ac_analysis(1.0, 1.0e9, 10).unwrap();
 
 ## CLI
 
-`tpt-elec-cli` exposes four subcommands: `thermal`, `impedance`, `drc`, and
-`report`.
+`tpt-elec-cli` exposes subcommands `thermal`, `impedance`, `drc`, and `report`.
+Install with `cargo install --path crates/cli/tpt-elec-cli` and run
+`tpt-elec-cli help` for the full flag reference.
 
 ```console
 $ tpt-elec-cli thermal --gerber top.gtl --power-map power.csv \

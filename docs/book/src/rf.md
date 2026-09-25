@@ -1,12 +1,55 @@
 # RF & microwave
 
+Match networks, synthesize filters, and budget links with `tpt-elec-rf-*`.
+
+## Matching
+
+```rust
+use tpt_elec_rf_core::{MatchingDesigner, MatchingTopology};
+
+let net = MatchingDesigner::l_network(
+    complex!(50.0, 0.0),
+    complex!(25.0, 15.0),
+    MatchingTopology::LowPass,
+    2.4e9,
+).unwrap();
+```
+
+Pi networks are ABCD-validated: `MatchingDesigner::pi_network`.
+
+## Smith chart
+
+`SmithChart::impedance_to_reflection` / `reflection_to_impedance` convert
+impedance ↔ reflection coefficient for plotting or network analysis.
+
+## Filters
+
+`tpt-elec-rf-filters` synthesizes Butterworth, Chebyshev-I, Chebyshev-II
+(pole/zero, even orders), and Bessel low/high/band-pass responses. Elliptic
+(Cauer) is still deferred pending Cauer g-tables (see `rfcs/0004`).
+
+## Antennas & links
+
+`AntennaType` (dipole, monopole, patch, yagi, helical), `LinkBudget`, and
+`free_space_path_loss` for range/coverage estimates. Compose the full chain
+(antenna → filter → mixer → budget) with `tpt-elec-rf-links`.
+
+## Try it
+
+```console
+$ cargo run -p example-wifi-antenna
+```
+
+See also [Signal & power integrity](si.md) for board-level transmission lines.
+
 - `tpt-elec-rf-core` — Smith chart maps and L/π network synthesis. Every
   synthesized network is verified by an ABCD-chain simulation, so |Γ| is
   guaranteed at the design frequency.
 - `tpt-elec-rf-filters` — Butterworth (closed form), Chebyshev I
-  (0.1/0.5/1/2/3 dB tables), Bessel ladders; LP/HP transformations; each
-  filter ships with ABCD-simulated S-parameters (−3 dB at the Butterworth
-  corner and equal-ripple at the Chebyshev corner are asserted in tests).
+  (0.1/0.5/1/2/3 dB tables), Chebyshev II (pole/zero, even orders),
+  Bessel ladders; LP/HP transformations; each filter ships with
+  ABCD-simulated S-parameters (−3 dB at the Butterworth corner and
+  equal-ripple at the Chebyshev corner are asserted in tests).
 - `tpt-elec-rf-antenna` — dipole/patch/monopole/Yagi/helical reference
   patterns, effective aperture, Friis FSPL, link budgets.
 - `tpt-elec-rf-mixer` — conversion gain, IM3 arithmetic, image rejection

@@ -50,6 +50,35 @@ function activate(context) {
     }
   );
 
+  const runDrc = vscode.commands.registerCommand(
+    "tpt-electronics.drc",
+    async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !editor.document.fileName.match(/\.kicad_pcb$/i)) {
+        vscode.window.showErrorMessage("Open a .kicad_pcb file first.");
+        return;
+      }
+      const board = editor.document.fileName;
+      const cfg = vscode.workspace.getConfiguration("tpt-electronics");
+      const cli = cfg.get("cliPath", "tpt-elec-cli");
+
+      const channel = vscode.window.createOutputChannel("tpt-electronics");
+      channel.show(true);
+      channel.appendLine(`Running ${cli} drc on ${board}…`);
+
+      execFile(cli, ["drc", "--kicad", board], (error, stdout, stderr) => {
+        const output = stdout || stderr;
+        channel.appendLine(output);
+        if (error && !stdout) {
+          vscode.window.showErrorMessage("tpt-elec-cli drc failed (see output).");
+          return;
+        }
+        const lastLine = output.trim().split("\n").pop() || "";
+        vscode.window.showInformationMessage(`DRC: ${lastLine}`);
+      });
+    }
+  );
+
   const runImpedance = vscode.commands.registerCommand(
     "tpt-electronics.impedance",
     async () => {
@@ -73,7 +102,7 @@ function activate(context) {
     }
   );
 
-  context.subscriptions.push(runThermal, runImpedance);
+  context.subscriptions.push(runThermal, runDrc, runImpedance);
 }
 
 // Quick Hammerstad-Jensen approximation so the command works without the

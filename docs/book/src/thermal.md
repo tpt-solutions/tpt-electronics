@@ -1,5 +1,49 @@
 # Thermal analysis
 
+Steady-state, transient, convection, and Joule heating with the
+`tpt-elec-thermal` family.
+
+## Steady state
+
+`ThermalSolver::solve_steady_state` assembles \([K]\), applies boundary
+conditions, and runs a Conjugate Gradient solve. Anisotropic tensors handle
+PCB substrates (in-plane ≫ through-plane).
+
+Boundary conditions: `FixedTemperature`, `Convection`, `Radiation`,
+`HeatFlux`, `HeatSource`.
+
+```rust
+let result = solver.solve_steady_state(&mut problem)?;
+let t_max = result.max_temperature;
+```
+
+## Transient
+
+`tpt-elec-transient` solves \([C]\{\dot T\} + [K]\{T\} = \{Q(t)\}\) with
+explicit/implicit integration → `TransientResult` (time history).
+
+## Convection
+
+`tpt-elec-convection` → `calculate_h`: Nusselt from Rayleigh (natural) or
+Reynolds + Prandtl (forced).
+
+## Joule heating (coupled)
+
+`tpt-elec-joule` iterates electrical solve → \(\rho(T)\) update → thermal →
+converge (`CoupledResult`). Power density uses the **current** temperature
+field (B4 fix).
+
+## From Gerber
+
+Rasterize copper (respecting `Polarity::Clear` cutouts — B3 fix), map to
+voxels (`tpt-elec-geometry`), attach materials (`tpt-elec-materials`), solve.
+
+CLI end-to-end: `tpt-elec-cli thermal …` (see [Tutorial](tutorial.md)).
+
+## Validation
+
+JEDEC JESD51 two-resistor checks (see [Validation](validation.md)).
+
 ## Model
 
 Boards are voxelized (`tpt-elec-geometry::VoxelGrid`) and assembled into a
