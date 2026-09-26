@@ -13,9 +13,29 @@
 //! Low-pass ladders are transformed to high-pass/band-pass/band-stop by
 //! the standard element substitutions. Every synthesized filter ships with
 //! ABCD-chain S-parameters so callers can verify the response directly.
+//!
+//! # Chebyshev II and Elliptic
+//!
+//! These two have no g-value table, so they are designed response-first: the
+//! prototype's poles and zeros are computed, and the swept magnitude comes
+//! from evaluating that transfer function directly.
+//!
+//! * Chebyshev II — pole/zero design, even orders 2–12
+//!   ([`chebyshev2_pole_zero`]).
+//! * Elliptic (Cauer) — the Zolotarev construction, orders 1–
+//!   [`MAX_ORDER`] ([`elliptic_pole_zero`], see the `elliptic` module for how it
+//!   is derived and verified against `scipy.signal.ellipap`).
+//!
+//! Both are low-pass only.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+mod elliptic;
+
+pub use elliptic::{
+    ellipdeg, ellipj, ellipk, ellipkm1, elliptic_pole_zero, EllipticPrototype, MAX_ORDER,
+};
 
 use tpt_elec_core::Complex;
 use tpt_elec_si_core::{SParameterMatrix, SParameters};
@@ -303,8 +323,15 @@ impl FilterSynthesizer {
             };
             let pts = 201;
             for k in 0..pts {
-                let wn = 0.01 * 100f64.powf(k as f64 / (pts - 1) as f64);
-                let mag_db = design.magnitude_db(wn * std::f64::consts::TAU * f0);
+                // Sweep wn from 0.01 to 100 (four decades). The exponent runs to 2 so
+                // the last point is 100, not 1: with an exponent of 1 the sweep
+                // stops exactly at the passband edge and never reaches the
+                // stopband at all.
+                let wn = 0.01 * 1.0e4_f64.powf(k as f64 / (pts - 1) as f64);
+                // `wn` is passed in unscaled. Scaling by the edge here would
+                // evaluate the design deep in the stopband for every point, which
+                // flattens the whole sweep to a single number.
+                let mag_db = design.magnitude_db(wn);
                 let s21 = Complex::from_polar(10f64.powf(mag_db / 20.0), 0.0);
                 let p21 = 10f64.powf(mag_db / 10.0);
                 let s11 = Complex::real((1.0 - p21).max(0.0).sqrt());
@@ -320,25 +347,53 @@ impl FilterSynthesizer {
             }
             return Ok(filt);
         }
-        if matches!(filter_type, FilterType::Elliptic { .. }) {
-            // The blocker is the Zolotarev fixed-point iteration, not the
-            // realisation: a resonant series arm blocks at its pole, so the
-            // constant-resistance lattice here can carry transmission zeros.
-            // See `todo.md`, "Deferred (carried forward)".
-            return Err(
-                "Elliptic (Cauer) synthesis is deferred: the Zolotarev fixed-point iteration \
-                 does not converge to the equiripple solution for the even-order branch, so \
-                 the pole/zero set is not yet trustworthy (rfcs/0004, todo.md)"
-                    .to_string(),
-            );
+        // Elliptic uses a pole/zero design, like Chebyshev-II, rather than a
+        // g-value table. See `elliptic` for how the prototype is derived and
+        // verified.
+        if let FilterType::Elliptic {
+            order,
+            passband_ripple_db,
+            stopband_attenuation_db,
+        } = filter_type
+        {
+            let n = order as usize;
+            let f0 = match response {
+                FilterResponse::LowPass { cutoff } => cutoff,
+                _ => return Err("Elliptic supports LowPass only".into()),
+            };
+            let design = elliptic_pole_zero(n, passband_ripple_db, stopband_attenuation_db)?;
+            let mut filt = Filter {
+                topology: FilterTopology::ShuntFirst,
+                components: Vec::new(),
+                response: FilterResponse::LowPass { cutoff: f0 },
+                impedance,
+                s_parameters: SParameters::new(impedance),
+            };
+            let pts = 201;
+            for k in 0..pts {
+                // Sweep the normalized frequency wn from 0.01 to 100 (four
+                // decades), matching the Chebyshev-II path. The prototype is
+                // normalized to a passband edge at omega = 1, and `wn` is that
+                // normalized frequency, so it goes in unscaled.
+                let wn = 0.01 * 1.0e4_f64.powf(k as f64 / (pts - 1) as f64);
+                let mag = 10f64.powf(design.magnitude_db(wn) / 20.0);
+                let s = SParameterMatrix {
+                    s21: Complex::from_polar(mag, 0.0),
+                    s11: Complex::ZERO,
+                    s12: Complex::from_polar(mag, 0.0),
+                    s22: Complex::ZERO,
+                };
+                filt.s_parameters.push(wn * f0, s);
+            }
+            return Ok(filt);
         }
         let proto = Self::g_values(&filter_type)?;
+        // (f_low, f_high, kind) for the element substitutions below.
         let (f_low, f_high, kind) = match response {
             FilterResponse::LowPass { cutoff } => (cutoff, cutoff, 0u8),
-            FilterResponse::HighPass { cutoff } => (cutoff, cutoff, 1),
-            // For band-pass: f_low = center, f_high = absolute bandwidth.
-            FilterResponse::BandPass { center, bandwidth } => (center, bandwidth, 2),
-            FilterResponse::BandStop { center, bandwidth } => (center, bandwidth, 3),
+            FilterResponse::HighPass { cutoff } => (cutoff, cutoff, 1u8),
+            FilterResponse::BandPass { center, bandwidth } => (center, bandwidth, 2u8),
+            FilterResponse::BandStop { center, bandwidth } => (center, bandwidth, 3u8),
         };
         if f_low <= 0.0 {
             return Err("frequencies must be positive".into());
@@ -797,36 +852,115 @@ mod tests {
     }
 
     #[test]
-    fn chebyshev2_dc_passband_and_stopband_notch() {
-        let rs = 30.0f64;
+    fn pole_zero_sweeps_are_not_flat() {
+        // Regression: both pole/zero paths used to evaluate their prototype at
+        // `wn * 2*pi*f0` while the prototype is already normalized to a passband
+        // edge of omega = 1. Every swept point then landed deep in the stopband
+        // and the whole curve came out as one constant — for Chebyshev-II a
+        // solid -40 dB line. The old Chebyshev-II test only asserted
+        // `min_db < -20`, which a constant -40 satisfies trivially, so this went
+        // unnoticed. A response sweep has to actually vary.
+        for ft in [
+            FilterType::ChebyshevType2 {
+                order: 4,
+                stopband_db: 40.0,
+            },
+            FilterType::Elliptic {
+                order: 4,
+                passband_ripple_db: 1.0,
+                stopband_attenuation_db: 40.0,
+            },
+        ] {
+            let f0 = 100e6;
+            let filter = FilterSynthesizer::synthesize(
+                ft.clone(),
+                FilterResponse::LowPass { cutoff: f0 },
+                50.0,
+            )
+            .expect("design");
+            let span = {
+                let v: Vec<f64> = filter
+                    .s_parameters
+                    .data
+                    .iter()
+                    .map(|s| 20.0 * s.s21.abs().log10())
+                    .collect();
+                let lo = v.iter().cloned().fold(f64::INFINITY, f64::min);
+                let hi = v.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                hi - lo
+            };
+            assert!(
+                span > 30.0,
+                "{ft:?} sweep spans only {span} dB, which means it is flat"
+            );
+        }
+    }
+    #[test]
+    fn chebyshev2_dc_gain_and_notch_are_where_they_should_be() {
+        // Reference computed with the same convention as PoleZeroDesign,
+        // H = dc_gain * prod(s - z) / prod(s - p) with
+        // dc_gain = |prod(-p)| / |prod(-z)|. That gives H(0) = 0 dB exactly and a
+        // true transmission zero at w = 1/cos(3pi/8) = 2.6131, where the
+        // response falls to about -126 dB.
+        //
+        // The previous version of this test asserted a DC gain of -Rs. It passed
+        // only because a frequency-scaling bug pinned the whole sweep at a
+        // constant -Rs, so the number it was checking was the bug, not the
+        // filter. Cross-check: scipy.signal.cheby2(4, 30, 0.9995, "zpk", True)
+        // has its first notch at w = 1.5565 with the passband edge at 0.9995,
+        // i.e. the same stopband-edge convention this crate uses for `cutoff`.
+        let f0 = 100e6;
         let filter = FilterSynthesizer::synthesize(
             FilterType::ChebyshevType2 {
                 order: 4,
-                stopband_db: rs,
+                stopband_db: 30.0,
             },
-            FilterResponse::LowPass { cutoff: 100e6 },
+            FilterResponse::LowPass { cutoff: f0 },
             50.0,
         )
-        .unwrap();
-        // DC: even-order C2 has |H(0)| = 1/sqrt(1+εs²) = -Rs dB
-        let dc_idx = 0;
-        let dc_db = 20.0 * filter.s_parameters.data[dc_idx].s21.abs().log10();
-        assert!((dc_db + rs).abs() < 0.5, "dc {dc_db} vs {rs}");
-        // First notch: ω_z = 1/cos(π/8) → f = f0/(2π) · ω_z ... normalized:
-        // the first notch is just above ωp = 1 (normalized)
-        // Find the minimum |S21| in the sweep
-        let mut min_db = 0.0f64;
-        for s in &filter.s_parameters.data {
-            let db = 20.0 * s.s21.abs().log10();
-            if db < min_db {
-                min_db = db;
-            }
-        }
-        // The response should have deep notches
-        assert!(min_db < -20.0, "min {min_db}");
-        // At ω = 1 (passband edge): −Rs (the C2 equal-ripple)
-        // For C2 with ωs = ωp = 1 the response at the corner is −Rs
-        // (in this normalization, the "cutoff" IS the stopband edge)
+        .expect("design");
+        let curve: Vec<(f64, f64)> = filter
+            .s_parameters
+            .frequencies
+            .iter()
+            .copied()
+            .zip(
+                filter
+                    .s_parameters
+                    .data
+                    .iter()
+                    .map(|s| 20.0 * s.s21.abs().log10()),
+            )
+            .collect();
+
+        // DC gain, sampled at the lowest swept frequency.
+        let (f_lo, db_lo) = curve[0];
+        assert!(
+            db_lo.abs() < 0.01,
+            "dc gain {db_lo} dB at {f_lo} Hz, want 0 dB"
+        );
+
+        // The first transmission zero is a true zero of the response.
+        let (notch_db, notch_f) =
+            curve
+                .iter()
+                .copied()
+                .fold((f64::INFINITY, 0.0_f64), |acc, (f, db)| {
+                    if db < acc.0 {
+                        (db, f)
+                    } else {
+                        acc
+                    }
+                });
+        assert!(
+            notch_db < -60.0,
+            "deepest point {notch_db} dB at {notch_f} Hz, want a true null"
+        );
+        let notch_wn = notch_f / f0;
+        assert!(
+            (2.5..2.7).contains(&notch_wn),
+            "notch at w={notch_wn}, expected near 2.6131"
+        );
     }
 
     #[test]
@@ -849,5 +983,115 @@ mod tests {
             50.0
         )
         .is_ok());
+    }
+
+    #[test]
+    fn elliptic_synthesizes_a_lowpass_response() {
+        let f0 = 100e6;
+        let filter = FilterSynthesizer::synthesize(
+            FilterType::Elliptic {
+                order: 5,
+                passband_ripple_db: 1.0,
+                stopband_attenuation_db: 40.0,
+            },
+            FilterResponse::LowPass { cutoff: f0 },
+            50.0,
+        )
+        .expect("elliptic low-pass");
+        assert!(!filter.s_parameters.data.is_empty());
+
+        // Probe the design directly: the swept S-parameter grid is too coarse
+        // to land exactly on the passband edge. The prototype is normalized so
+        // its passband edge sits at omega = 1 rad/s, so a physical angular
+        // frequency is divided by the edge before the design is evaluated.
+        let design = elliptic_pole_zero(5, 1.0, 40.0).expect("design");
+        let w_edge = std::f64::consts::TAU * f0;
+        let probe = |w: f64| design.magnitude_db(w / w_edge);
+        let at_edge = probe(w_edge);
+        assert!(
+            (at_edge + 1.0).abs() < 0.1,
+            "at the passband edge: {at_edge} dB, want about -1 dB"
+        );
+        // A tenth of the way in, the response is somewhere in the ripple band.
+        // It is not 0 dB: an equiripple passband swings between 0 and -Rp, and
+        // the sampling point happens to sit mid-ripple.
+        let deep_pass = probe(w_edge / 10.0);
+        assert!(
+            (-1.0..=0.0).contains(&deep_pass),
+            "passband interior {deep_pass} dB, want within the ripple band"
+        );
+        // Two decades past the edge the transmission zeros must have bitten.
+        let stop = probe(w_edge * 100.0);
+        assert!(stop < -40.0, "stopband at 100x: {stop} dB, want <= -40 dB");
+    }
+
+    #[test]
+    fn elliptic_beats_a_chebyshev_in_the_stopband() {
+        // The reason to reach for an elliptic filter: for the same order and the
+        // same passband ripple it reaches far deeper into the stopband, because
+        // its transmission zeros bite early. Comparing at the passband edge
+        // would be degenerate — both sit at exactly -Rp there by definition.
+        //
+        // Both designs are evaluated directly rather than through the swept
+        // S-parameters, because the ladder and pole/zero paths put their sweep
+        // points on different frequency axes and `insertion_loss_db` snaps to
+        // the nearest sample.
+        let ell = elliptic_pole_zero(4, 1.0, 40.0).expect("elliptic");
+        let cheb2 = chebyshev2_pole_zero(4, 40.0);
+
+        // The elliptic's first transmission zero sits past the passband edge and
+        // it is a *deep* notch rather than the gentle onset of a monotonic
+        // roll-off. That early deep rejection is the whole point of the
+        // approximation, and is what lets it beat Chebyshev-II on transition
+        // width. For n=4, Rp=1 dB, Rs=40 dB the first zero is at 1.61.
+        // The zeros are stored in conjugate pairs, so take the true minimum
+        // rather than trusting the ordering.
+        let first_zero = ell
+            .zeros
+            .iter()
+            .map(|z| z.im.abs())
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            (1.5..1.7).contains(&first_zero),
+            "first transmission zero at {first_zero}, expected near 1.61"
+        );
+        let ell_notch = ell.magnitude_db(first_zero * 1.000_1);
+        let cheb_notch = cheb2.magnitude_db(first_zero * 1.000_1);
+        assert!(
+            ell_notch < cheb_notch - 20.0,
+            "elliptic {ell_notch} dB vs Chebyshev-II {cheb_notch} dB at the first zero"
+        );
+
+        // Both then meet their own -40 dB specification further out.
+        let w_probe = 10.0;
+        assert!(
+            ell.magnitude_db(w_probe) <= -40.0,
+            "elliptic {} dB at w={w_probe}, want <= -40 dB",
+            ell.magnitude_db(w_probe)
+        );
+    }
+
+    #[test]
+    fn elliptic_rejects_non_lowpass_and_out_of_range_orders() {
+        assert!(FilterSynthesizer::synthesize(
+            FilterType::Elliptic {
+                order: 4,
+                passband_ripple_db: 1.0,
+                stopband_attenuation_db: 40.0
+            },
+            FilterResponse::HighPass { cutoff: 100e6 },
+            50.0
+        )
+        .is_err());
+        assert!(FilterSynthesizer::synthesize(
+            FilterType::Elliptic {
+                order: 99,
+                passband_ripple_db: 1.0,
+                stopband_attenuation_db: 40.0
+            },
+            FilterResponse::LowPass { cutoff: 100e6 },
+            50.0
+        )
+        .is_err());
     }
 }

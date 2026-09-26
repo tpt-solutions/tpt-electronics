@@ -353,37 +353,40 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Watch mode (`tpt-elec-cli thermal --watch` with file-signature polling)
 - [x] Better parse errors (subckt suggestions; line-number infrastructure in place)
 - [x] Chebyshev-II filter synthesis (response-based pole/zero design, even orders 2–12)
-- [ ] Elliptic (Cauer) filter synthesis. Chosen approach: a **constant-resistance
-      lattice** with resonant arms. The crate already has `SeriesParallelLc` /
-      `ShuntParallelLc` / `ShuntSeriesLc` and evaluates them in `abcd_s21_s11`, so an
-      earlier claim that a plain series/shunt ladder cannot carry transmission
-      zeros was WRONG — that holds only for polynomial ABCD elements, and a
-      resonant series arm blocks at its pole to give a real zero.
+- [x] Elliptic (Cauer) filter synthesis. Shipped as a **Zolotarev pole/zero design**
+      (orders 1-10, low-pass only), which sidesteps lattice extraction
+      entirely: a resonant series arm blocks at its pole, so the earlier claim
+      that a plain series/shunt ladder cannot carry transmission zeros was
+      wrong. Three earlier attempts were reverted rather than shipped
+      unverified; this one is verified two independent ways:
 
-      Three attempts, all reverted rather than shipped unverified. Findings, in order
-      of how far it now gets:
-      * DONE+VERIFIED: the Zolotarev fixed-point iteration reproduces the published
-        5-pole `K(s)` to ~5 sig figs, and it converges cleanly (order 2 -> 0.781114,
-        order 3 -> 0.908).
-      * ROOT CAUSE FOUND AND FIXED: `gmagnitude_db` computed `|jw - z|` as
-        `sqrt((w - z.re)^2 + z.im^2)`, treating the zero as if it were real. The
-        correct distance is `sqrt(z.re^2 + (w - z.im)^2)`. This was present in
-        every attempt and is why the passband never equirippled. With it fixed the
-        `|G| = 1/sqrt(1 + eps^2 K(jw)^2)` identity test PASSES.
-      * DC gain is NOT always 1: the identity gives `1/sqrt(1 + eps^2 K(0)^2)`, which is
-        0 dB for odd orders (DC is a ripple peak) and `-Rp` for even ones (DC is
-        a ripple minimum). Hard-coding unity gain breaks even orders.
-      * REMAINING: the fixed point is not landing on the true equiripple solution.
-        Order 3 measures a 4.2 dB passband ripple when 1 dB was asked for (its
-        passband `|K|` peaks at ~1.62 instead of 1), and the even-order branch is
-        clearly broken (order 4 gives -44 dB at xi = 1.05, i.e. no transition band).
-        Suspect the `reflection_zeros` extraction by parity — `num(s)` is purely
-        even for even n and purely odd for odd n, so the odd-order branch reads the
-        odd part and the even-order branch the even part, and the even-order one
-        has not been validated at all. Next step: validate `reflection_zeros`
-        against a hand-computed fixed point per parity before touching anything
-        else, then re-run the identity + equiripple + stopband gates before any
-        lattice work.
+      * Against `scipy.signal.ellipap` (1.16.2) - a wholly separate
+        implementation. Its pole/zero sets for 32 (order, Rp, Rs) combinations
+        are frozen in `test-data/golden/rf/elliptic_pole_zero.json`, and the
+        in-crate test compares all of them to 1e-9 (304 comparisons). The golden
+        needs no SciPy at test time, so CI cannot drift with a SciPy version.
+
+      * Against the physics - the defining property, asserted for every vendored
+        case: `|H|` is equiripple over 0<=w<=1 with recovered `max|K| = 1`
+        exactly, the ripple is exactly `Rp` deep, DC is 0 dB for odd orders and
+        `-Rp` for even ones, every pole is in the LHP, every transmission zero
+        sits beyond the passband edge, and the response reaches `-Rs`.
+
+      Two real bugs in the *existing* Chebyshev-II path were found and fixed on
+      the way: both pole/zero sweeps evaluated the prototype at `wn * 2*pi*f0`
+      while the prototype is already normalised to an edge of omega = 1, so
+      every swept point landed in the stopband and the entire Chebyshev-II
+      response was a flat -40 dB line; and the sweep exponent topped out at
+      `wn = 1.0`, so it never reached the stopband at all. The old test only
+      asserted `min_db < -20`, which a constant -40 satisfies trivially, so
+      it passed against the bug. `pole_zero_sweeps_are_not_flat` now guards it.
+      A second bug fixed while porting: `K(m) = pi/(2*AGM(...))` was written
+      as a multiplication, a 90% error. See `crates/rf/tpt-elec-rf-filters/src/elliptic.rs`.
+
+      Known limit: order is capped at 10. Above that the prototype stops being
+      equiripple at marginal designs (order 12, Rp = 1 dB, Rs = 20 dB gives
+      max|K| = 11.9 here and 1.71 in SciPy, against 1 for a valid filter), so
+      the cap is a measured boundary rather than an arbitrary one.
 - [x] Band-stop ladder transformation (series parallel-LC series arm, series-LC shunt arm; ESR-damped)
 - [ ] Publishing to crates.io (explicitly excluded from this pass — see Adoption below)
 - [x] BSIM3/BSIM4 short-channel subsets (mobility degradation + velocity saturation + CLM) and EKV charge-sheet law; full Berkeley parameter sets deferred
@@ -479,8 +482,9 @@ Found in the platform review; each verified against the code.
   Review entry above that is still open). The netlist text is the unit of input, so
   each call is self-contained; the buck converter is checked against the crate's
   own golden, which pinned the transient step size at 20 ns.
-- [ ] Elliptic synthesis is exposed as a name but raises `ValueError` until the
-  filter crate lands it (see the deferred item above).
+- [x] Elliptic synthesis is exposed as a name and now works: `synthesize_filter('elliptic')`
+      returns a low-pass response for orders 1-10, and the smoke test asserts
+      the real -1 dB passband edge and the <= -40 dB stopband.
 
 ## xtask
 
@@ -511,19 +515,14 @@ tick those, not these.
   and a clean tree.
 - Publish the VS Code extension to the Marketplace. Requires a publisher account.
 
-**Blocked - needs a design decision or an external reference:**
-- Elliptic (Cauer) filter synthesis. The realisation is not the blocker — a
-  resonant series arm carries the transmission zeros, so the constant-resistance
-  lattice is fine. What is missing is a *trustworthy* equiripple pole/zero set:
-  the Zolotarev fixed point is verified only for odd orders, and it needs to be
-  validated per parity before any lattice work. See the detailed entry above.
+**Blocked - needs an external reference:**
 - Cross-check `buck_converter_transient` against an external SPICE solver
   (ngspice/LTspice). This is the last fixture that a second
   implementation of our own solver cannot cover.
 
 **Actionable now:**
-- (none — the actionable items, `.pyi` stubs, the SPICE bindings and the golden
-  coverage, are all done.)
+- (none — the actionable items, the `.pyi` stubs, the SPICE bindings, the golden
+  coverage and elliptic synthesis are all done.)
 
 **Also worth fixing, found while adding the above:**
 - [x] **CI MSRV job was red on `master` — now green.** Three separate causes, not one:
@@ -545,6 +544,8 @@ tick those, not these.
       a dead end.** The summary, `rfcs/0004`, the book and the CLI/Python error strings
       all said it "needs Cauer g-tables". The detailed entry above had already disproven
       that: g-tables are not required (a resonant series arm carries the transmission
-      zeros, so the lattice is fine) and the real blocker is the Zolotarev fixed point
+      zeros, so the lattice is fine) and the real blocker was the Zolotarev fixed point
       not landing on the equiripple solution. All five now agree. The CLI string also
-      carried a run of stray spaces from a bad line continuation.
+      carried a run of stray spaces from a bad line continuation. **Elliptic has since
+      been implemented and verified** — see the filter section above; the deferral
+      wording is gone from the crate, the RFC, the book and the bindings.

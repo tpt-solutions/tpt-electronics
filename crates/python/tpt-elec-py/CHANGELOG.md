@@ -29,11 +29,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Known limitations
 
-- `elliptic`/`cauer` is accepted by `synthesize_filter` but raises
-  `ValueError`; elliptic synthesis is still deferred in
-  `tpt-elec-rf-filters` (see `rfcs/0004`).
-- Only low-pass elliptic synthesis would be supported even once implemented;
-  the other approximations already cover low/high/band-pass/band-stop.
+- Elliptic (Cauer) is low-pass only, orders 1-10, via the Zolotarev pole/zero
+  design in `tpt-elec-rf-filters` (see `rfcs/0004`); high-pass/band-pass/
+  band-stop elliptic is not supported; the other approximations already
+  cover those shapes.
 - `spice.transient` accuracy depends on `t_step_s`. The buck-converter golden
   is reproduced at `t_step_s = 20e-9, max_step_factor = 5.0`; much coarser
   steps drift well outside the 0.05 V tolerance.

@@ -46,7 +46,8 @@ class filters:
         ``insertion_loss_db`` and ``return_loss_db``.
 
         :raises ValueError: unknown filter type or response, or a specification
-            the solver rejects (including ``elliptic``, not implemented yet).
+            the solver rejects (for example a ``chebyshev2`` odd order, or an
+            ``elliptic`` order above 10).
         """
 
 class impedance:

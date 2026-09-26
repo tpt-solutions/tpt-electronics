@@ -24,10 +24,11 @@ impedance ↔ reflection coefficient for plotting or network analysis.
 
 ## Filters
 
-`tpt-elec-rf-filters` synthesizes Butterworth, Chebyshev-I, Chebyshev-II
-(pole/zero, even orders), and Bessel low/high/band-pass responses. Elliptic
-(Cauer) is still deferred: the response model does not yet produce a
-trustworthy equiripple pole/zero set (see `rfcs/0004`).
+`tpt-elec-rf-filters` synthesizes Butterworth, Chebyshev-I, Bessel
+low/high/band-pass responses, and Chebyshev-II (pole/zero, even orders) and
+Elliptic/Cauer (pole/zero, orders 1–10, low-pass only). The elliptic design is
+the Zolotarev construction and is checked against `scipy.signal.ellipap` and
+against the equiripple definition (see `rfcs/0004`).
 
 ## Antennas & links
 

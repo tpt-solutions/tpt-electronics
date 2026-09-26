@@ -35,8 +35,9 @@ reason:
 
 ### Coverage
 
-`--list` reports all seven fixtures. Five are checked against an independent
-reference; one holds no derived value; one is genuinely blocked.
+`--list` reports all eight fixtures. Five are checked against an independent
+reference, one holds no derived value, one is frozen from an external
+implementation, and one is genuinely blocked.
 
 | Fixture | Treatment |
 |---|---|
@@ -46,9 +47,10 @@ reference; one holds no derived value; one is genuinely blocked.
 | `pcie_gen3_eye` | independent PRBS-7 + channel + eye metrics — regenerated |
 | `rc_lowpass_ac` | parameters only; the test derives the reference itself |
 | `l_network_match` | specification only — nothing to regenerate |
+| `elliptic_pole_zero` | frozen from `scipy.signal.ellipap`; checked in-crate |
 | `buck_converter_transient` | **blocked** — needs an external solver |
 
-### Two grades of independence
+### Three grades of independence
 
 Worth being precise about, because the guarantees differ:
 
@@ -60,6 +62,11 @@ Worth being precise about, because the guarantees differ:
   model. This catches implementation drift and transcription errors — the
   common bug class — but **not** a shared misunderstanding of the model, since
   both sides implement the same equations.
+- **External implementations** (`elliptic_pole_zero`): the numbers were produced
+  by `scipy.signal.ellipap`, which shares no code and no author with this
+  workspace, and are frozen into the golden so the check needs no SciPy at test
+  time. Because elliptic synthesis has no closed form to hand-check against,
+  this is the only kind of reference available for it.
 
 The buck converter is the one fixture where a second implementation of our own
 model proves nothing: reproducing our own solver tells you only that it is

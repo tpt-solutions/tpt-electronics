@@ -94,8 +94,8 @@ Python binding matches that golden to within its 0.05 V tolerance.
 - `pyo3` needs `unsafe` for its generated FFI glue, so this crate overrides
   the workspace `forbid(unsafe_code)` lint locally. There is no hand-written
   `unsafe` in this crate.
-- `elliptic` / `cauer` is accepted by `synthesize_filter` but raises
-  `ValueError` until elliptic synthesis lands in `tpt-elec-rf-filters`.
+- `elliptic` / `cauer` is low-pass only, orders 1-10; other shapes raise
+  `ValueError`. The others cover high-pass/band-pass/band-stop.
 
 ## License
 

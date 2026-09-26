@@ -185,6 +185,23 @@ pub fn specification_only() -> Vec<(&'static str, &'static str, &'static str)> {
     )]
 }
 
+/// Goldens whose reference numbers were produced by an **external** tool rather
+/// than by a model in this workspace.
+///
+/// These are not regenerable here — `xtask` has no Zolotarev implementation, and
+/// writing one would only be a second implementation of our own maths. But they
+/// are not blocked either: the values are frozen, and the in-crate test compares
+/// the design against them case for case, so drift is still caught.
+pub fn externally_referenced() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![(
+        "elliptic_pole_zero",
+        "test-data/golden/rf/elliptic_pole_zero.json",
+        "pole/zero sets from scipy.signal.ellipap 1.16.2, an implementation \
+         independent of this workspace; checked in-crate to 1e-9 and separately \
+         against the equiripple definition",
+    )]
+}
+
 /// Goldens that are genuinely blocked and **never** rewritten.
 pub fn simulation_derived() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![(
@@ -263,9 +280,21 @@ mod tests {
             .iter()
             .map(|c| c.name)
             .chain(specification_only().iter().map(|(n, _, _)| *n))
+            .chain(externally_referenced().iter().map(|(n, _, _)| *n))
             .chain(simulation_derived().iter().map(|(n, _, _)| *n))
             .collect();
-        assert_eq!(known.len(), 7, "expected 7 goldens, classified: {known:?}");
+        assert_eq!(known.len(), 8, "expected 8 goldens, classified: {known:?}");
+
+        // And every classified name must actually have a file on disk, so a
+        // renamed or moved fixture cannot be silently dropped from the check.
+        for (name, path, _) in specification_only()
+            .into_iter()
+            .chain(externally_referenced())
+            .chain(simulation_derived())
+        {
+            let full = crate::workspace_root().expect("root").join(path);
+            assert!(full.is_file(), "{name} classified but {path} is missing");
+        }
     }
 
     #[test]

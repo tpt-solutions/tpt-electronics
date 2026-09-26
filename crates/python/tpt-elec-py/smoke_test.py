@@ -119,21 +119,37 @@ def test_filters() -> None:
     else:  # pragma: no cover - the call above must raise
         raise AssertionError("expected ValueError for an unknown filter type")
 
-    # Elliptic is exposed and reports that it is response-based.
+    # Elliptic (Cauer) low-pass is implemented via the Zolotarev pole/zero
+    # design, verified in the Rust crate against scipy.signal.ellipap.
+    ell = tp.synthesize_filter(
+        "elliptic",
+        order=4,
+        response="lowpass",
+        cutoff_hz=100e6,
+        ripple_db=1.0,
+        stopband_db=40.0,
+    )
+    assert len(ell["frequencies_hz"]) > 0, "elliptic must produce a sweep"
+
+    # The passband edge is the first -Rp crossing, so the sweep must show a
+    # response that starts near 0 dB and falls well past the ripple by 10x.
+    freqs = ell["frequencies_hz"]
+    il = ell["insertion_loss_db"]
+    f_edge = 100e6
+    at_edge = il[min(range(len(freqs)), key=lambda i: abs(freqs[i] - f_edge))]
+    assert abs(at_edge + 1.0) < 0.5, f"at the edge: {at_edge} dB, want about -1 dB"
+    far = il[min(range(len(freqs)), key=lambda i: abs(freqs[i] - 10 * f_edge))]
+    assert far <= -40.0, f"a decade out: {far} dB, want <= -40 dB"
+
+    # An out-of-range order must still be rejected, not silently clamped.
     try:
-        ell = tp.synthesize_filter(
-            "elliptic",
-            order=4,
-            response="lowpass",
-            cutoff_hz=100e6,
-            ripple_db=1.0,
-            stopband_db=40.0,
+        tp.synthesize_filter(
+            "elliptic", order=99, response="lowpass", cutoff_hz=100e6
         )
     except ValueError:
-        pass  # Not yet implemented in the Rust filter crate; that is fine.
-    else:
-        assert len(ell["frequencies_hz"]) > 0
-
+        pass
+    else:  # pragma: no cover - the call above must raise
+        raise AssertionError("expected ValueError for an out-of-range elliptic order")
 
 def test_thermal() -> None:
     mats = tp.thermal.default_materials()

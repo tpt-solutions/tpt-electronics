@@ -24,16 +24,14 @@ $50k seats; the closed forms are entirely public and testable.
 * Filters: g-value prototypes + LP→HP transformation; the Butterworth −3 dB
   corner and Chebyshev equal-ripple edge are asserted through the same ABCD
   simulation. Chebyshev-II uses a response-based pole/zero design (even
-  orders 2–12). Elliptic (Cauer) remains deferred — not for want of a
-  realisation (`SeriesParallelLc` already gives a constant-resistance lattice
-  that carries transmission zeros) but because the Zolotarev fixed-point
-  iteration does not yet land on the equiripple solution, so its pole/zero
-  set cannot be trusted. See `todo.md`, "Deferred (carried forward)".
+  orders 2–12). Elliptic (Cauer) is implemented as a Zolotarev pole/zero
+  design (orders 1–10), verified case-for-case against `scipy.signal.ellipap`
+  and against the equiripple definition.
 
 ## Alternatives
 
 Real-frequency technique (deferred), optimization-based matching (deferred),
-elliptic synthesis (Zolotarev fixed point not yet equiripple-correct).
+elliptic synthesis (implemented; see `tpt-elec-rf-filters::elliptic`).
 
 ## Unresolved questions
 

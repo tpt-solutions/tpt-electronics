@@ -146,6 +146,10 @@ fn run_regen_goldens(args: &[String]) -> Result<ExitCode, String> {
         for (name, _path, why) in reference::specification_only() {
             println!("  {:<28} {}", name, why);
         }
+        println!("\nExternally referenced (frozen values from a third-party implementation):");
+        for (name, _path, why) in reference::externally_referenced() {
+            println!("  {:<28} {}", name, why);
+        }
         println!("\nSimulation-derived (never rewritten by this tool):");
         for (name, _path, why) in reference::simulation_derived() {
             println!("  {:<28} {}", name, why);

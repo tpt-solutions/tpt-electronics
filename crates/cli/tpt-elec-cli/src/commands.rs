@@ -1435,7 +1435,10 @@ mod tests {
             "filter --type chebyshev2 --order 4 --stopband-db 40 --cutoff 1e6"
         ))));
         assert!(err(rf_impl(&args("filter --type nope --order 3"))));
-        assert!(err(rf_impl(&args("filter --type elliptic --order 3"))));
+        // Elliptic is implemented (verified against scipy.signal.ellipap); an
+        // out-of-range order is what must still be rejected.
+        assert!(!err(rf_impl(&args("filter --type elliptic --order 3"))));
+        assert!(err(rf_impl(&args("filter --type elliptic --order 99"))));
         assert!(err(rf_impl(&args("bogus"))));
         assert!(exit_is(dispatch(&args("rf match --load 20")), true));
     }
