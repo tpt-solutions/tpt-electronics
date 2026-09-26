@@ -44,6 +44,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # The top-level `RUSTFLAGS: -D warnings` env var takes full precedence
+      # over .cargo/config.toml's `target.'cfg(macos)'.rustflags`, so the
+      # pyo3 macOS linker workaround there never reaches the linker unless
+      # it's folded into RUSTFLAGS itself. Append it here, macOS-only, so
+      # `-D warnings` is preserved everywhere.
+      - name: Add pyo3 macOS linker workaround to RUSTFLAGS
+        if: runner.os == 'macOS'
+        run: echo "RUSTFLAGS=$RUSTFLAGS -C link-arg=-undefined -C link-arg=dynamic_lookup" >> "$GITHUB_ENV"
       - run: cargo test --workspace
 
   goldens:
