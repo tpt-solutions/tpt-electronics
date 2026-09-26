@@ -47,7 +47,7 @@ jobs:
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Criterion Benchmarks
-          tool: customSmallerBetter
+          tool: customSmallerIsBetter
           output-file-path: benchmark-data/output.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
