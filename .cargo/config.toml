@@ -1,0 +1,6 @@
+[target.'cfg(target_os = "macos")']
+# `tpt-elec-py` builds pyo3 with the `extension-module` feature, which leaves
+# CPython symbols unresolved so the interpreter supplies them when it imports
+# the compiled extension. Linux and Windows tolerate undefined symbols in a
+# `cdylib`; Apple's linker doesn't unless told to defer them to load time.
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]

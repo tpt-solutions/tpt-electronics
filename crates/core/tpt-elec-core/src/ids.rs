@@ -52,12 +52,22 @@ impl fmt::Display for BoardId {
 }
 
 fn seed_from_entropy() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    // A clock-only seed can collide: some platforms report timestamps at
+    // coarse resolution, and two calls made back-to-back (as in
+    // `board_ids_are_distinct`) can land in the same tick. A monotonically
+    // increasing counter guarantees every call sees a distinct seed
+    // regardless of clock resolution.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0x9E3779B97F4A7C15);
-    nanos ^ (&nanos as *const u64 as usize as u64)
+    nanos ^ count.wrapping_mul(0x9E3779B97F4A7C15)
 }
 
 fn xorshift64_star(mut x: u64) -> u64 {
